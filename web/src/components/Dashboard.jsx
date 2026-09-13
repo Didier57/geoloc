@@ -21,7 +21,15 @@ const PALETTE = [
 function toInput(date) {
   const d = new Date(date);
   const offset = d.getTimezoneOffset();
-  return new Date(d.getTime() - offset * 60000).toISOString().slice(0, 16);
+  return new Date(d.getTime() - offset * 60000).toISOString().slice(0, 10);
+}
+
+function startOfDay(value) {
+  return new Date(`${value}T00:00:00`);
+}
+
+function endOfDay(value) {
+  return new Date(`${value}T23:59:59.999`);
 }
 
 export default function Dashboard({ user, onLogout }) {
@@ -80,8 +88,8 @@ export default function Dashboard({ user, onLogout }) {
     try {
       const { tracks: list } = await api.tracks(
         selectedIds,
-        new Date(from).toISOString(),
-        new Date(to).toISOString(),
+        startOfDay(from).toISOString(),
+        endOfDay(to).toISOString(),
       );
       setTracks(list);
     } catch (err) {

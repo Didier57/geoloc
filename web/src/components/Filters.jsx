@@ -59,11 +59,11 @@ export default function Filters({
         <div className="date-row">
           <label>
             Du
-            <input type="datetime-local" value={from} onChange={(e) => onFrom(e.target.value)} />
+            <input type="date" value={from} onChange={(e) => onFrom(e.target.value)} />
           </label>
           <label>
             Au
-            <input type="datetime-local" value={to} onChange={(e) => onTo(e.target.value)} />
+            <input type="date" value={to} onChange={(e) => onTo(e.target.value)} />
           </label>
         </div>
       </div>
