@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build frontend
+        working-directory: web
+        run: |
+          npm install
+          npm run build
+
+      - name: Check backend
+        working-directory: server
+        run: |
+          npm install
+          for f in $(find src -name '*.js'); do node --check "$f"; done
+
+      - name: Build Docker images
+        run: |
+          docker build -t geoloc-server ./server
+          docker build -t geoloc-web ./web
