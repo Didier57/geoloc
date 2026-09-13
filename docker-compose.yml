@@ -1,6 +1,7 @@
 services:
   server:
     image: ghcr.io/didier57/geoloc-server:${GEOLOC_IMAGE_TAG:-latest}
+    pull_policy: always
     restart: unless-stopped
     environment:
       SERVER_PORT: ${SERVER_PORT:-4000}
@@ -27,6 +28,7 @@ services:
 
   web:
     image: ghcr.io/didier57/geoloc-web:${GEOLOC_IMAGE_TAG:-latest}
+    pull_policy: always
     restart: unless-stopped
     depends_on:
       - server
