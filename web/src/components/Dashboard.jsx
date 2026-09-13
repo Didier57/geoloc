@@ -149,7 +149,9 @@ export default function Dashboard({ user, onLogout }) {
         </button>
       </header>
 
-      {!config?.configured ? (
+      {config === null ? (
+        <div className="notice">Chargement…</div>
+      ) : !config.configured ? (
         <div className="notice">
           <span>Home Assistant n'est pas encore configuré.</span>
           {isAdmin ? (
