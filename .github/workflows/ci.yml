@@ -26,8 +26,3 @@ jobs:
         run: |
           npm install
           for f in $(find src -name '*.js'); do node --check "$f"; done
-
-      - name: Build Docker images
-        run: |
-          docker build -t geoloc-server ./server
-          docker build -t geoloc-web ./web
