@@ -344,6 +344,13 @@ select:focus {
   align-items: center;
 }
 
+.leaflet-popup-content .popup-address {
+  display: inline-block;
+  margin-top: 4px;
+  color: #4b5563;
+  font-style: italic;
+}
+
 @media (max-width: 720px) {
   .user-form {
     grid-template-columns: 1fr;

@@ -3,6 +3,7 @@ import { requireAuth } from '../auth.js';
 import { getHaConfig } from '../store.js';
 import { decryptSecret } from '../utils/crypto.js';
 import { fetchHistory, fetchStates, mapTrackableEntities } from '../homeassistant.js';
+import { reverseGeocode } from '../geocode.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -44,6 +45,20 @@ router.get('/tracks', requireConfig, async (req, res) => {
 
   const tracks = await fetchHistory(req.ha, entityIds, from, to);
   res.json({ tracks });
+});
+
+router.get('/reverse', async (req, res) => {
+  const lat = Number(req.query.lat);
+  const lng = Number(req.query.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return res.status(400).json({ error: 'invalid_coords', message: 'Coordonnées invalides.' });
+  }
+  try {
+    const address = await reverseGeocode(lat, lng);
+    res.json({ address });
+  } catch (err) {
+    res.status(502).json({ error: 'geocode_failed', message: err.message });
+  }
 });
 
 export default router;

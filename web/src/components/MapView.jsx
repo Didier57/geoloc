@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { CircleMarker, MapContainer, Polyline, Popup, TileLayer, Tooltip, useMap } from 'react-leaflet';
+import { api } from '../api.js';
 
 const MAX_POINT_MARKERS = 500;
 
@@ -52,6 +53,22 @@ export default function MapView({ tracks, entities, selectedIds, colors }) {
   const visibleEntities = entities.filter(
     (entity) => selectedIds.includes(entity.entityId) && entity.latitude != null,
   );
+  const [addresses, setAddresses] = useState({});
+  const requested = useRef(new Set());
+
+  const loadAddress = useCallback((key, latitude, longitude) => {
+    if (requested.current.has(key)) return;
+    requested.current.add(key);
+    setAddresses((prev) => ({ ...prev, [key]: 'Chargement…' }));
+    api
+      .reverse(latitude, longitude)
+      .then(({ address }) => {
+        setAddresses((prev) => ({ ...prev, [key]: address || 'Adresse introuvable' }));
+      })
+      .catch(() => {
+        setAddresses((prev) => ({ ...prev, [key]: 'Adresse indisponible' }));
+      });
+  }, []);
 
   return (
     <MapContainer center={[46.6, 2.5]} zoom={6} style={{ height: '100%', width: '100%' }}>
@@ -72,21 +89,27 @@ export default function MapView({ tracks, entities, selectedIds, colors }) {
 
       {tracks.map((track) => {
         const color = colors[track.entityId] || '#2563eb';
-        return samplePoints(track.points).map(({ point, index }) => (
-          <CircleMarker
-            key={`${track.entityId}-${index}`}
-            center={[point.latitude, point.longitude]}
-            radius={3}
-            pathOptions={{ color, weight: 1, fillColor: color, fillOpacity: 0.9 }}
-          >
-            <Popup>
-              <strong>{track.name}</strong>
-              <br />
-              {formatTime(point.timestamp)}
-              {point.accuracy != null ? ` · ±${Math.round(point.accuracy)} m` : ''}
-            </Popup>
-          </CircleMarker>
-        ));
+        return samplePoints(track.points).map(({ point, index }) => {
+          const key = `${track.entityId}-${index}-${point.latitude}-${point.longitude}`;
+          return (
+            <CircleMarker
+              key={key}
+              center={[point.latitude, point.longitude]}
+              radius={3}
+              pathOptions={{ color, weight: 1, fillColor: color, fillOpacity: 0.9 }}
+              eventHandlers={{ click: () => loadAddress(key, point.latitude, point.longitude) }}
+            >
+              <Popup>
+                <strong>{track.name}</strong>
+                <br />
+                {formatTime(point.timestamp)}
+                {point.accuracy != null ? ` · ±${Math.round(point.accuracy)} m` : ''}
+                <br />
+                <span className="popup-address">{addresses[key] || 'Cliquez pour voir l’adresse'}</span>
+              </Popup>
+            </CircleMarker>
+          );
+        });
       })}
 
       {visibleEntities.map((entity) => (

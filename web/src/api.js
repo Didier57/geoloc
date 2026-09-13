@@ -38,6 +38,7 @@ export const api = {
   saveHa: (payload) => request('/api/config/ha', { method: 'POST', body: JSON.stringify(payload) }),
 
   entities: () => request('/api/geoloc/entities'),
+  reverse: (lat, lng) => request(`/api/geoloc/reverse?lat=${lat}&lng=${lng}`),
   tracks: (entityIds, from, to) => {
     const params = new URLSearchParams({ entities: entityIds.join(','), from });
     if (to) params.set('to', to);
