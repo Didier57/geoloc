@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
-import { CircleMarker, MapContainer, Polyline, TileLayer, Tooltip, useMap } from 'react-leaflet';
+import { CircleMarker, MapContainer, Polyline, Popup, TileLayer, Tooltip, useMap } from 'react-leaflet';
+
+const MAX_POINT_MARKERS = 500;
 
 function FitBounds({ tracks, entities, selectedIds }) {
   const map = useMap();
@@ -23,6 +25,29 @@ function FitBounds({ tracks, entities, selectedIds }) {
   return null;
 }
 
+function formatTime(value) {
+  if (!value) return 'Heure inconnue';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Heure inconnue';
+  return date.toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+function samplePoints(points) {
+  if (points.length <= MAX_POINT_MARKERS) {
+    return points.map((point, index) => ({ point, index }));
+  }
+  const step = Math.ceil(points.length / MAX_POINT_MARKERS);
+  const result = [];
+  for (let i = 0; i < points.length; i += step) {
+    result.push({ point: points[i], index: i });
+  }
+  const lastIndex = points.length - 1;
+  if (result[result.length - 1].index !== lastIndex) {
+    result.push({ point: points[lastIndex], index: lastIndex });
+  }
+  return result;
+}
+
 export default function MapView({ tracks, entities, selectedIds, colors }) {
   const visibleEntities = entities.filter(
     (entity) => selectedIds.includes(entity.entityId) && entity.latitude != null,
@@ -44,6 +69,25 @@ export default function MapView({ tracks, entities, selectedIds, colors }) {
           />
         ) : null,
       )}
+
+      {tracks.map((track) => {
+        const color = colors[track.entityId] || '#2563eb';
+        return samplePoints(track.points).map(({ point, index }) => (
+          <CircleMarker
+            key={`${track.entityId}-${index}`}
+            center={[point.latitude, point.longitude]}
+            radius={3}
+            pathOptions={{ color, weight: 1, fillColor: color, fillOpacity: 0.9 }}
+          >
+            <Popup>
+              <strong>{track.name}</strong>
+              <br />
+              {formatTime(point.timestamp)}
+              {point.accuracy != null ? ` · ±${Math.round(point.accuracy)} m` : ''}
+            </Popup>
+          </CircleMarker>
+        ));
+      })}
 
       {visibleEntities.map((entity) => (
         <CircleMarker
