@@ -15,6 +15,10 @@ export const config = {
   cookieSecure: boolFromEnv(process.env.COOKIE_SECURE) ?? appUrl.startsWith('https://'),
   isProduction: process.env.NODE_ENV === 'production',
   dataFile: process.env.DATA_FILE || './data/geoloc.json',
+  entityAllowlist: (process.env.GEOLOC_ENTITIES || 'Didier 17 T Pro,X1 sDrive 18d Location')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean),
   admin: {
     username: process.env.ADMIN_USERNAME || 'admin',
     email: process.env.ADMIN_EMAIL || '',
