@@ -46,6 +46,32 @@ export function saveDay(entityId, day, points) {
   return list.length;
 }
 
+export function listArchives() {
+  let entries = [];
+  try {
+    entries = fs.readdirSync(DIR, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const result = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    let files = [];
+    try {
+      files = fs.readdirSync(path.join(DIR, entry.name));
+    } catch {
+      files = [];
+    }
+    const days = files
+      .filter((name) => name.endsWith('.json'))
+      .map((name) => name.slice(0, -5))
+      .filter((day) => /^\d{4}-\d{2}-\d{2}$/.test(day))
+      .sort();
+    result.push({ entityId: entry.name, days });
+  }
+  return result;
+}
+
 export function archivedDays(entityIds) {
   const result = new Map();
   for (const id of entityIds) {

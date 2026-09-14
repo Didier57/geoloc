@@ -52,4 +52,8 @@ export const api = {
     if (to) params.set('to', to);
     return request(`/api/geoloc/tracks?${params.toString()}`);
   },
+
+  backup: (includeConfig, includeToken) =>
+    request(`/api/backup?config=${includeConfig ? '1' : '0'}&token=${includeToken ? '1' : '0'}`),
+  importBackup: (payload) => request('/api/backup', { method: 'POST', body: JSON.stringify(payload) }),
 };

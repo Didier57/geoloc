@@ -581,6 +581,44 @@ select:focus {
   color: var(--popup-fg);
 }
 
+.backup-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.backup-section h3 {
+  margin: 0;
+}
+
+.check-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--label);
+  text-transform: none;
+}
+
+.check-line input[type='checkbox'] {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  accent-color: var(--primary);
+}
+
+.file-name {
+  font-size: 13px;
+  color: var(--muted-2);
+  word-break: break-all;
+}
+
+.backup-stats {
+  font-size: 13px;
+}
+
 @media (max-width: 720px) {
   .user-form {
     grid-template-columns: 1fr;

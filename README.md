@@ -22,6 +22,8 @@ des entités de suivi de position de **Home Assistant** (toute entité exposant 
   lieux d'intérêt alentour (OpenStreetMap / Overpass) apparaissent sur la carte.
 - **Mode sombre / clair** : bouton lune/soleil en haut à droite du bandeau, préférence mémorisée
   dans le navigateur (suit le thème du système par défaut).
+- **Sauvegarde / restauration** (admin) : export d'un fichier JSON avec tous les trajets archivés et
+  la configuration Home Assistant, réimportable sans créer de doublons.
 
 ## Architecture
 
@@ -82,6 +84,18 @@ un **repère violet** (épingle) est affiché sur la carte. Cliquez dessus pour 
 autour de chaque arrêt sont affichés par leur nom, avec un point jaune. Les données proviennent de
 l'API **Overpass** (sans clé) ; les réponses sont mises en cache 24 h côté serveur pour limiter les
 appels.
+
+## Sauvegarde et restauration
+
+Depuis la fenêtre **Sauvegarde** (bouton visible par les administrateurs), vous pouvez :
+
+- **Exporter** un fichier JSON (`geoloc-backup-AAAA-MM-JJ.json`) contenant **tous les trajets
+  archivés** sur le serveur (dossier `history/`) et, en option, la **configuration Home Assistant**
+  (adresse, entités sélectionnées et — si vous le souhaitez — le token d'accès, nécessaire pour
+  restaurer la connexion sur une autre instance).
+- **Importer** une sauvegarde : chaque jour est fusionné avec les données existantes et les points
+  déjà présents (même horodatage) sont **ignorés**, ce qui évite tout doublon. La configuration Home
+  Assistant est restaurée si elle est présente dans le fichier.
 
 ## Prérequis
 
@@ -146,6 +160,8 @@ Le front de développement tourne sur `http://localhost:5173` et proxifie `/api`
    **Enregistrer la sélection**. Seules ces entités apparaîtront ensuite dans la fenêtre principale.
 4. Choisissez le jour pour afficher les trajets sur la carte.
 5. Le bouton **Utilisateurs** permet de gérer les comptes (admin uniquement).
+6. Le bouton **Sauvegarde** permet d'exporter ou de réimporter les trajets et la configuration
+   (admin uniquement).
 
 ## Publication des images
 

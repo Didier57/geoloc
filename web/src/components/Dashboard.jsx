@@ -6,6 +6,7 @@ import Filters from './Filters.jsx';
 import MapView from './MapView.jsx';
 import Settings from './Settings.jsx';
 import Users from './Users.jsx';
+import Backup from './Backup.jsx';
 
 const PALETTE = [
   '#e6194b',
@@ -50,6 +51,7 @@ export default function Dashboard({ user, onLogout }) {
   const [syncing, setSyncing] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
+  const [showBackup, setShowBackup] = useState(false);
 
   const loadConfig = useCallback(async () => {
     try {
@@ -211,6 +213,11 @@ export default function Dashboard({ user, onLogout }) {
             Utilisateurs
           </button>
         )}
+        {isAdmin && (
+          <button className="btn ghost" onClick={() => setShowBackup(true)}>
+            Sauvegarde
+          </button>
+        )}
         <button className="btn ghost" onClick={onLogout}>
           Déconnexion
         </button>
@@ -276,6 +283,16 @@ export default function Dashboard({ user, onLogout }) {
         />
       )}
       {showUsers && <Users onClose={() => setShowUsers(false)} />}
+      {showBackup && (
+        <Backup
+          onClose={() => setShowBackup(false)}
+          onImported={() => {
+            loadConfig();
+            loadEntities();
+            loadTracks();
+          }}
+        />
+      )}
     </div>
   );
 }
