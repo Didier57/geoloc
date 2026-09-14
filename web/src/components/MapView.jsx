@@ -173,11 +173,11 @@ export function stayIcon() {
   });
 }
 
-export default function MapView({ tracks, entities, selectedIds, colors }) {
+export default function MapView({ tracks, entities, selectedIds, colors, showLive = true }) {
   const selected = new Set(selectedIds || []);
-  const visibleEntities = entities.filter(
-    (entity) => entity.latitude != null && selected.has(entity.entityId),
-  );
+  const visibleEntities = showLive
+    ? entities.filter((entity) => entity.latitude != null && selected.has(entity.entityId))
+    : [];
   const names = {};
   entities.forEach((entity) => {
     names[entity.entityId] = entity.name;

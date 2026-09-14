@@ -266,7 +266,13 @@ export default function Dashboard({ user, onLogout }) {
             <div className="empty banner">Pas de données pour cette date.</div>
           )}
           <div className="map-wrap">
-            <MapView tracks={tracks} entities={entities} selectedIds={selectedIds} colors={colors} />
+            <MapView
+              tracks={tracks}
+              entities={entities}
+              selectedIds={selectedIds}
+              colors={colors}
+              showLive={date === toDateInput(new Date())}
+            />
             <div className="legend">
               {MODE_ORDER.map((mode) => (
                 <span key={mode}>
