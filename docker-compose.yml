@@ -6,6 +6,7 @@ services:
     environment:
       SERVER_PORT: ${SERVER_PORT:-4000}
       TZ: ${TZ:-Europe/Paris}
+      APP_TZ: ${APP_TZ:-Europe/Paris}
       APP_URL: ${APP_URL:-http://localhost:8080}
       SESSION_SECRET: ${SESSION_SECRET}
       COOKIE_ENC_KEY: ${COOKIE_ENC_KEY}

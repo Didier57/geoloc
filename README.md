@@ -120,6 +120,7 @@ Copiez `.env.example` en `.env` et renseignez au minimum :
 | `ADMIN_EMAIL` | Email de l'admin (optionnel) |
 | `ADMIN_PASSWORD` | Mot de passe de l'admin (8 caractères min) |
 | `TZ` | Fuseau horaire du serveur (`Europe/Paris` par défaut) |
+| `APP_TZ` | Fuseau de référence pour découper les journées 00:00 → 24:00, indépendant du conteneur (`Europe/Paris` par défaut) |
 | `ARCHIVE_BACKFILL_DAYS` | Jours rattrapés depuis Home Assistant au démarrage (8 par défaut) |
 | `STILL_MAX_KMH` | Vitesse sous laquelle le device est considéré immobile (2 par défaut) |
 | `WALK_MAX_KMH` | Vitesse sous laquelle un déplacement est « à pied », au dessus « en voiture » (8 par défaut) |

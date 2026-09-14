@@ -63,10 +63,8 @@ export async function runArchive({ force = false } = {}) {
 }
 
 function msUntilNextMidnight() {
-  const now = new Date();
-  const next = new Date(now);
-  next.setHours(24, 0, 0, 0);
-  return next.getTime() - now.getTime();
+  const next = dayStart(shiftDay(todayString(), 1));
+  return next.getTime() - Date.now();
 }
 
 function scheduleNext() {

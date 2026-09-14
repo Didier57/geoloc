@@ -14,6 +14,7 @@ export const config = {
   cookieEncKey: process.env.COOKIE_ENC_KEY || '',
   cookieSecure: boolFromEnv(process.env.COOKIE_SECURE) ?? appUrl.startsWith('https://'),
   isProduction: process.env.NODE_ENV === 'production',
+  timeZone: process.env.APP_TZ || 'Europe/Paris',
   dataFile: process.env.DATA_FILE || './data/geoloc.json',
   archiveBackfillDays: Math.max(1, Number(process.env.ARCHIVE_BACKFILL_DAYS || 8)),
   stillMaxKmh: Math.max(0, Number(process.env.STILL_MAX_KMH || 2)),
