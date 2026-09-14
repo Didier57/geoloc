@@ -9,6 +9,7 @@ on:
 permissions:
   contents: read
   packages: write
+  actions: write
 
 jobs:
   publish:
@@ -46,3 +47,40 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+  cleanup:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Keep only the 6 most recent workflow runs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const keep = 6;
+            const { owner, repo } = context.repo;
+            const runs = [];
+            for (let page = 1; page <= 10; page += 1) {
+              const { data } = await github.rest.actions.listWorkflowRunsForRepo({
+                owner,
+                repo,
+                per_page: 100,
+                page,
+              });
+              runs.push(...data.workflow_runs);
+              if (data.workflow_runs.length < 100) break;
+            }
+            const completed = runs
+              .filter((run) => run.status === 'completed')
+              .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+            const toDelete = completed.slice(keep);
+            core.info(`Runs: ${runs.length}, à supprimer: ${toDelete.length}`);
+            for (const run of toDelete) {
+              try {
+                await github.rest.actions.deleteWorkflowRun({ owner, repo, run_id: run.id });
+                core.info(`Run ${run.id} (${run.name} #${run.run_number}) supprimé`);
+              } catch (error) {
+                core.warning(`Suppression du run ${run.id} impossible: ${error.message}`);
+              }
+            }

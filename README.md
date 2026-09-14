@@ -175,6 +175,9 @@ GitHub Container Registry à chaque push sur `main` (et sur les tags `v*`) :
 - `ghcr.io/didier57/geoloc-server`
 - `ghcr.io/didier57/geoloc-web`
 
+Après chaque push, un job **cleanup** conserve uniquement les **6 derniers runs** dans l'onglet
+Actions et supprime les plus anciens.
+
 ## Notes
 
 - L'API Home Assistant renvoie l'historique conservé dans le **recorder** ; la profondeur dépend de
