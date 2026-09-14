@@ -37,6 +37,7 @@ export default function Dashboard({ user, onLogout }) {
 
   const [config, setConfig] = useState(null);
   const [entities, setEntities] = useState([]);
+  const [selectedIds, setSelectedIds] = useState([]);
   const [date, setDate] = useState(() => toDateInput(new Date()));
   const [tracks, setTracks] = useState([]);
   const [error, setError] = useState('');
@@ -56,11 +57,16 @@ export default function Dashboard({ user, onLogout }) {
     try {
       const { entities: list } = await api.entities();
       setEntities(list);
+      setSelectedIds((prev) => {
+        const valid = prev.filter((id) => list.some((entity) => entity.entityId === id));
+        return valid.length > 0 ? valid : list.map((entity) => entity.entityId);
+      });
       setError('');
     } catch (err) {
       if (err.status === 409) {
         setConfig((c) => ({ ...(c || {}), configured: false }));
         setEntities([]);
+        setSelectedIds([]);
       } else {
         setError(err.message);
       }
@@ -74,8 +80,6 @@ export default function Dashboard({ user, onLogout }) {
   useEffect(() => {
     if (config?.configured) loadEntities();
   }, [config?.configured, loadEntities]);
-
-  const selectedIds = useMemo(() => entities.map((e) => e.entityId), [entities]);
 
   const loadTracks = useCallback(async () => {
     if (!config?.configured || selectedIds.length === 0) {
@@ -109,6 +113,26 @@ export default function Dashboard({ user, onLogout }) {
     });
     return map;
   }, [entities]);
+
+  function toggleEntity(id) {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((value) => value !== id) : [...prev, id],
+    );
+  }
+
+  function selectAllEntities() {
+    setSelectedIds(entities.map((entity) => entity.entityId));
+  }
+
+  function clearEntities() {
+    setSelectedIds([]);
+  }
+
+  function shiftDay(delta) {
+    const next = startOfDay(date);
+    next.setDate(next.getDate() + delta);
+    setDate(toDateInput(next));
+  }
 
   async function handleSettingsSaved() {
     await loadConfig();
@@ -157,10 +181,20 @@ export default function Dashboard({ user, onLogout }) {
         </div>
       ) : (
         <>
-          <Filters entities={entities} date={date} onDate={setDate} colors={colors} />
+          <Filters
+            entities={entities}
+            selectedIds={selectedIds}
+            onToggle={toggleEntity}
+            onSelectAll={selectAllEntities}
+            onClear={clearEntities}
+            colors={colors}
+            date={date}
+            onDate={setDate}
+            onShiftDay={shiftDay}
+          />
           {error && <div className="error banner">{error}</div>}
           <div className="map-wrap">
-            <MapView tracks={tracks} entities={entities} colors={colors} />
+            <MapView tracks={tracks} entities={entities} selectedIds={selectedIds} colors={colors} />
             {loading && <div className="map-loading">Chargement…</div>}
           </div>
         </>

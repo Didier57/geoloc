@@ -49,8 +49,11 @@ function samplePoints(points) {
   return result;
 }
 
-export default function MapView({ tracks, entities, colors }) {
-  const visibleEntities = entities.filter((entity) => entity.latitude != null);
+export default function MapView({ tracks, entities, selectedIds, colors }) {
+  const selected = new Set(selectedIds || []);
+  const visibleEntities = entities.filter(
+    (entity) => entity.latitude != null && selected.has(entity.entityId),
+  );
   const [addresses, setAddresses] = useState({});
   const requested = useRef(new Set());
 
@@ -129,7 +132,7 @@ export default function MapView({ tracks, entities, colors }) {
         </CircleMarker>
       ))}
 
-      <FitBounds tracks={tracks} entities={entities} />
+      <FitBounds tracks={tracks} entities={visibleEntities} />
     </MapContainer>
   );
 }

@@ -112,6 +112,19 @@ select:focus {
   background: #f9fafb;
 }
 
+.btn.icon {
+  background: #fff;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  padding: 6px 12px;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.btn.icon:hover {
+  background: #f9fafb;
+}
+
 .error {
   background: #fef2f2;
   color: #b91c1c;
@@ -183,6 +196,13 @@ select:focus {
   font-weight: 700;
   text-transform: uppercase;
   color: #6b7280;
+}
+
+.filter-actions {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 10px;
+  text-transform: none;
 }
 
 .chips {
