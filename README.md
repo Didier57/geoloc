@@ -10,6 +10,8 @@ des entités de suivi de position de **Home Assistant** (toute entité exposant 
 - Carte **Leaflet + OpenStreetMap** (aucune clé API, gratuit).
 - Sélection du jour (de 00:00 à 24:00), navigation jour précédent/suivant, et affichage des trajets
   (archivés localement, sinon lus en direct depuis Home Assistant).
+- **Mode sombre / clair** : bouton lune/soleil en haut à droite du bandeau, préférence mémorisée
+  dans le navigateur (suit le thème du système par défaut).
 
 ## Architecture
 

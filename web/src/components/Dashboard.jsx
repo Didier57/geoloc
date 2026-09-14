@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
+import { useTheme } from '../theme.js';
 import Filters from './Filters.jsx';
 import MapView from './MapView.jsx';
 import Settings from './Settings.jsx';
@@ -34,6 +35,7 @@ function endOfDay(value) {
 
 export default function Dashboard({ user, onLogout }) {
   const isAdmin = user.role === 'admin';
+  const { theme, toggleTheme } = useTheme();
 
   const [config, setConfig] = useState(null);
   const [entities, setEntities] = useState([]);
@@ -165,6 +167,28 @@ export default function Dashboard({ user, onLogout }) {
       <header className="topbar">
         <div className="brand">Geoloc</div>
         <div className="spacer" />
+        <button
+          className="btn icon theme-toggle"
+          onClick={toggleTheme}
+          title={theme === 'dark' ? 'Passer en mode clair' : 'Passer en mode sombre'}
+          aria-label={theme === 'dark' ? 'Passer en mode clair' : 'Passer en mode sombre'}
+        >
+          {theme === 'dark' ? (
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <circle cx="12" cy="12" r="5" fill="currentColor" />
+              <g stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M12 2v2M12 20v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2 12h2M20 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4" />
+              </g>
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path
+                d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"
+                fill="currentColor"
+              />
+            </svg>
+          )}
+        </button>
         <span className="user">
           {user.username}
           {isAdmin ? ' (admin)' : ''}
