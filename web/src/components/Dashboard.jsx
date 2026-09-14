@@ -251,6 +251,10 @@ export default function Dashboard({ user, onLogout }) {
                   {MODE_LABELS[mode]}
                 </span>
               ))}
+              <span>
+                <i className="legend-stay" />
+                Arrêt (≤ 200 m)
+              </span>
             </div>
             {loading && <div className="map-loading">Chargement…</div>}
           </div>

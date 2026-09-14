@@ -13,6 +13,8 @@ des entités de suivi de position de **Home Assistant** (toute entité exposant 
 - **Analyse marche / voiture** : chaque point est classé d'après la vitesse calculée entre deux
   positions successives. Le tracé prend la couleur correspondante (vert à pied, rouge en voiture,
   gris immobile) et de petites **flèches** indiquent le sens de déplacement.
+- **Arrêts sur place** : un repère violet signale les lieux où la personne est restée (rayon 200 m
+  pendant au moins 5 min) ; au clic, l'adresse et la plage horaire de l'arrêt s'affichent.
 - **Mode sombre / clair** : bouton lune/soleil en haut à droite du bandeau, préférence mémorisée
   dans le navigateur (suit le thème du système par défaut).
 
@@ -61,6 +63,12 @@ classé :
 
 Des **flèches** sont placées régulièrement sur le tracé pour indiquer le sens de déplacement. Le
 détail (mode et vitesse) apparaît dans l'infobulle d'un point.
+
+### Arrêts sur place
+
+Lorsque plusieurs points successifs restent dans un rayon de **200 m** pendant au moins **5 minutes**,
+un **repère violet** (épingle) est affiché sur la carte. Cliquez dessus pour voir le **lieu**
+(adresse géocodée) et la **plage horaire** de l'arrêt (de … à …) avec sa durée.
 
 ## Prérequis
 

@@ -40,3 +40,66 @@ export function bearingDegrees(aLat, aLng, bLat, bLng) {
 export function modeColor(mode, fallback) {
   return MODE_COLORS[mode] || fallback;
 }
+
+export const STAY_RADIUS_KM = 0.2;
+export const STAY_MIN_MINUTES = 5;
+
+export function detectStays(points, radiusKm = STAY_RADIUS_KM, minMinutes = STAY_MIN_MINUTES) {
+  const stays = [];
+  let cluster = null;
+
+  const flush = () => {
+    if (!cluster) return;
+    const start = new Date(cluster.points[0].timestamp).getTime();
+    const last = cluster.points[cluster.points.length - 1];
+    const end = new Date(last.timestamp).getTime();
+    const durationMs = end - start;
+    if (
+      cluster.points.length >= 2 &&
+      Number.isFinite(durationMs) &&
+      durationMs >= minMinutes * 60000
+    ) {
+      stays.push({
+        latitude: cluster.centerLat,
+        longitude: cluster.centerLng,
+        start: cluster.points[0].timestamp,
+        end: last.timestamp,
+        durationMs,
+        count: cluster.points.length,
+      });
+    }
+    cluster = null;
+  };
+
+  points.forEach((point) => {
+    if (point.latitude == null || point.longitude == null) return;
+    if (!cluster) {
+      cluster = {
+        anchorLat: point.latitude,
+        anchorLng: point.longitude,
+        centerLat: point.latitude,
+        centerLng: point.longitude,
+        points: [point],
+      };
+      return;
+    }
+    const distance = haversineKm(cluster.anchorLat, cluster.anchorLng, point.latitude, point.longitude);
+    if (distance <= radiusKm) {
+      cluster.points.push(point);
+      const n = cluster.points.length;
+      cluster.centerLat += (point.latitude - cluster.centerLat) / n;
+      cluster.centerLng += (point.longitude - cluster.centerLng) / n;
+    } else {
+      flush();
+      cluster = {
+        anchorLat: point.latitude,
+        anchorLng: point.longitude,
+        centerLat: point.latitude,
+        centerLng: point.longitude,
+        points: [point],
+      };
+    }
+  });
+  flush();
+  return stays;
+}

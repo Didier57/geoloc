@@ -424,6 +424,37 @@ select:focus {
   filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.6));
 }
 
+.route-stay {
+  background: transparent;
+  border: none;
+}
+
+.route-stay-inner {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--surface);
+  color: #7c3aed;
+  border: 2px solid #7c3aed;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+.legend .legend-stay {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid #7c3aed;
+}
+
+.leaflet-popup-content .popup-stay {
+  color: #7c3aed;
+  font-weight: 600;
+}
+
 .notice {
   margin: 24px;
   padding: 20px;

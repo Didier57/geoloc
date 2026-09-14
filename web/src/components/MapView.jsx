@@ -11,11 +11,12 @@ import {
 } from 'react-leaflet';
 import { divIcon } from 'leaflet';
 import { api } from '../api.js';
-import { bearingDegrees, haversineKm, MODE_LABELS, modeColor } from '../motion.js';
+import { bearingDegrees, detectStays, haversineKm, MODE_LABELS, modeColor } from '../motion.js';
 
 const MAX_POINT_MARKERS = 500;
 const MAX_ARROWS = 40;
 const ARROW_STEP_KM = 0.3;
+const STAY_COLOR = '#7c3aed';
 
 function FitBounds({ tracks, entities }) {
   const map = useMap();
@@ -44,6 +45,22 @@ function formatTime(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return 'Heure inconnue';
   return date.toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+function formatClock(value) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatDuration(ms) {
+  const minutes = Math.max(0, Math.round(ms / 60000));
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (hours && rest) return `${hours} h ${String(rest).padStart(2, '0')}`;
+  if (hours) return `${hours} h`;
+  return `${rest} min`;
 }
 
 function samplePoints(points) {
@@ -110,6 +127,15 @@ function arrowIcon(bearing, color) {
     )}deg)"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M12 2l7 18-7-5-7 5z" fill="currentColor"/></svg></div>`,
     iconSize: [16, 16],
     iconAnchor: [8, 8],
+  });
+}
+
+export function stayIcon() {
+  return divIcon({
+    className: 'route-stay',
+    html: `<div class="route-stay-inner"><svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z" fill="currentColor"/></svg></div>`,
+    iconSize: [26, 26],
+    iconAnchor: [13, 13],
   });
 }
 
@@ -211,6 +237,34 @@ export default function MapView({ tracks, entities, selectedIds, colors }) {
           );
         });
       })}
+
+      {tracks.map((track) =>
+        detectStays(track.points).map((stay, index) => {
+          const key = `${track.entityId}-stay-${index}-${stay.latitude}-${stay.longitude}`;
+          return (
+            <Marker
+              key={key}
+              position={[stay.latitude, stay.longitude]}
+              icon={stayIcon()}
+              eventHandlers={{ click: () => loadAddress(key, stay.latitude, stay.longitude) }}
+            >
+              <Popup>
+                <strong>{names[track.entityId] || track.name || track.entityId}</strong>
+                <br />
+                <span className="popup-stay">Arrêt sur place</span>
+                <br />
+                De {formatClock(stay.start)} à {formatClock(stay.end)}
+                <br />
+                Durée : {formatDuration(stay.durationMs)}
+                <br />
+                <span className="popup-address">
+                  {addresses[key] || 'Cliquez pour voir le lieu'}
+                </span>
+              </Popup>
+            </Marker>
+          );
+        }),
+      )}
 
       {visibleEntities.map((entity) => (
         <CircleMarker
