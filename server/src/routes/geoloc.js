@@ -6,6 +6,7 @@ import { fetchHistory, fetchStates, mapTrackableEntities } from '../homeassistan
 import { reverseGeocode } from '../geocode.js';
 import { hasDay, readDay, saveDay } from '../history.js';
 import { dayStart, dayEnd, listDays, todayString } from '../dates.js';
+import { runArchive } from '../archive.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -107,6 +108,11 @@ router.get('/tracks', requireConfig, async (req, res) => {
   if (total > 0) source = fromDb && fromHa ? 'mixed' : fromHa ? 'ha' : 'db';
 
   res.json({ tracks, source, haError });
+});
+
+router.post('/archive', requireConfig, async (req, res) => {
+  const result = await runArchive({ force: req.body?.force === true });
+  res.json({ ok: true, ...result });
 });
 
 router.get('/reverse', async (req, res) => {

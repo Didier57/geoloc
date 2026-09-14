@@ -40,6 +40,8 @@ export const api = {
     request('/api/config/ha/entities', { method: 'POST', body: JSON.stringify({ entities }) }),
 
   entities: (all) => request(`/api/geoloc/entities${all ? '?all=1' : ''}`),
+  archive: (force) =>
+    request('/api/geoloc/archive', { method: 'POST', body: JSON.stringify({ force: !!force }) }),
   reverse: (lat, lng) => request(`/api/geoloc/reverse?lat=${lat}&lng=${lng}`),
   tracks: (entityIds, from, to) => {
     const params = new URLSearchParams({ entities: entityIds.join(','), from });

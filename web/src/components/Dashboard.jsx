@@ -43,6 +43,7 @@ export default function Dashboard({ user, onLogout }) {
   const [source, setSource] = useState('none');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
 
@@ -145,6 +146,20 @@ export default function Dashboard({ user, onLogout }) {
     loadEntities();
   }
 
+  async function handleSync() {
+    setSyncing(true);
+    setError('');
+    try {
+      await api.archive(true);
+      await loadEntities();
+      await loadTracks();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -154,8 +169,8 @@ export default function Dashboard({ user, onLogout }) {
           {user.username}
           {isAdmin ? ' (admin)' : ''}
         </span>
-        <button className="btn ghost" onClick={loadEntities}>
-          Synchroniser
+        <button className="btn ghost" onClick={handleSync} disabled={syncing}>
+          {syncing ? 'Synchronisation…' : 'Synchroniser'}
         </button>
         {isAdmin && (
           <button className="btn ghost" onClick={() => setShowSettings(true)}>

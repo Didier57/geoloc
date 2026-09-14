@@ -35,6 +35,8 @@ Home Assistant ne conserve qu'un nombre limité de jours d'historique (8 jours p
   enregistre les positions de la veille pour les entités sélectionnées.
 - **Au démarrage**, il rattrape les `ARCHIVE_BACKFILL_DAYS` derniers jours (8 par défaut) s'ils ne
   sont pas déjà archivés.
+- **Manuellement**, le bouton « Synchroniser » force la mise à jour de la base pour les jours
+  couverts par le rattrapage, puis recharge les entités et la carte.
 
 Lors d'une recherche sur la page d'accueil, le serveur interroge **d'abord la base locale** ; si le
 jour n'est pas archivé (par exemple aujourd'hui), il interroge **Home Assistant** ; si aucune donnée

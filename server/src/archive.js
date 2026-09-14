@@ -17,7 +17,7 @@ function currentConfig() {
   }
 }
 
-export async function runArchive() {
+export async function runArchive({ force = false } = {}) {
   const cfg = currentConfig();
   if (!cfg) return { archived: 0, skipped: 'ha_not_configured' };
 
@@ -31,7 +31,7 @@ export async function runArchive() {
   for (let offset = config.archiveBackfillDays; offset >= 1; offset -= 1) {
     const dayString = shiftDay(today, -offset);
 
-    const missing = entityIds.filter((id) => !hasDay(id, dayString));
+    const missing = force ? entityIds : entityIds.filter((id) => !hasDay(id, dayString));
     if (missing.length === 0) continue;
 
     let tracks;
