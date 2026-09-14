@@ -40,6 +40,20 @@ function coordKey(latitude, longitude) {
 
 function FitBounds({ tracks, entities }) {
   const map = useMap();
+  const signature = useMemo(() => {
+    const parts = [];
+    tracks.forEach((track) => {
+      track.points.forEach((point) =>
+        parts.push(`${Number(point.latitude).toFixed(5)},${Number(point.longitude).toFixed(5)}`),
+      );
+    });
+    entities
+      .filter((entity) => entity.latitude != null)
+      .forEach((entity) =>
+        parts.push(`${Number(entity.latitude).toFixed(5)},${Number(entity.longitude).toFixed(5)}`),
+      );
+    return parts.join('|');
+  }, [tracks, entities]);
 
   useEffect(() => {
     const points = [];
@@ -55,7 +69,7 @@ function FitBounds({ tracks, entities }) {
     } else if (points.length > 1) {
       map.fitBounds(points, { padding: [30, 30] });
     }
-  }, [tracks, entities, map]);
+  }, [signature, map]);
 
   return null;
 }
