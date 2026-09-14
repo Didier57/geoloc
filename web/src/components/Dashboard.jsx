@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { useTheme } from '../theme.js';
 import { MODE_COLORS, MODE_LABELS, MODE_ORDER } from '../motion.js';
@@ -40,7 +40,8 @@ export default function Dashboard({ user, onLogout }) {
 
   const [config, setConfig] = useState(null);
   const [entities, setEntities] = useState([]);
-  const [selectedIds, setSelectedIds] = useState([]);
+  const [selectedIds, setSelectedIds] = useState(() => (user.selectedEntity ? [user.selectedEntity] : []));
+  const selectedRef = useRef(selectedIds);
   const [date, setDate] = useState(() => toDateInput(new Date()));
   const [tracks, setTracks] = useState([]);
   const [source, setSource] = useState('none');
@@ -58,14 +59,20 @@ export default function Dashboard({ user, onLogout }) {
     }
   }, []);
 
+  useEffect(() => {
+    selectedRef.current = selectedIds;
+  }, [selectedIds]);
+
   const loadEntities = useCallback(async () => {
     try {
       const { entities: list } = await api.entities();
       setEntities(list);
-      setSelectedIds((prev) => {
-        const valid = prev.filter((id) => list.some((entity) => entity.entityId === id));
-        return valid.length > 0 ? valid : list.map((entity) => entity.entityId);
-      });
+      const current = selectedRef.current[0];
+      const kept = current && list.some((entity) => entity.entityId === current) ? current : null;
+      const next = kept || list[0]?.entityId || null;
+      const nextIds = next ? [next] : [];
+      setSelectedIds(nextIds);
+      if (next && next !== current) api.setSelection(next).catch(() => {});
       setError('');
     } catch (err) {
       if (err.status === 409) {
@@ -122,18 +129,15 @@ export default function Dashboard({ user, onLogout }) {
     return map;
   }, [entities]);
 
-  function toggleEntity(id) {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((value) => value !== id) : [...prev, id],
-    );
-  }
-
-  function selectAllEntities() {
-    setSelectedIds(entities.map((entity) => entity.entityId));
+  function selectEntity(id) {
+    const next = selectedIds.includes(id) ? [] : [id];
+    setSelectedIds(next);
+    api.setSelection(next[0] || null).catch(() => {});
   }
 
   function clearEntities() {
     setSelectedIds([]);
+    api.setSelection(null).catch(() => {});
   }
 
   function shiftDay(delta) {
@@ -230,8 +234,7 @@ export default function Dashboard({ user, onLogout }) {
           <Filters
             entities={entities}
             selectedIds={selectedIds}
-            onToggle={toggleEntity}
-            onSelectAll={selectAllEntities}
+            onSelect={selectEntity}
             onClear={clearEntities}
             colors={colors}
             date={date}

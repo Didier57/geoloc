@@ -10,6 +10,9 @@ des entités de suivi de position de **Home Assistant** (toute entité exposant 
 - Carte **Leaflet + OpenStreetMap** (aucune clé API, gratuit).
 - Sélection du jour (de 00:00 à 24:00), navigation jour précédent/suivant, et affichage des trajets
   (archivés localement, sinon lus en direct depuis Home Assistant).
+- **Une seule entité affichée à la fois** dans la fenêtre principale : cliquer sur une personne la
+  sélectionne et désélectionne les autres. Le choix est mémorisé par compte et restauré à la
+  reconnexion.
 - **Analyse marche / voiture** : chaque point est classé d'après la vitesse calculée entre deux
   positions successives. Le tracé prend la couleur correspondante (vert à pied, rouge en voiture,
   gris immobile) et de petites **flèches** indiquent le sens de déplacement.

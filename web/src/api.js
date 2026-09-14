@@ -26,6 +26,8 @@ export const api = {
   login: (identifier, password) =>
     request('/api/auth/login', { method: 'POST', body: JSON.stringify({ identifier, password }) }),
   me: () => request('/api/auth/me'),
+  setSelection: (entityId) =>
+    request('/api/auth/selection', { method: 'POST', body: JSON.stringify({ entityId }) }),
   logout: () => request('/api/auth/logout', { method: 'POST' }),
 
   users: () => request('/api/users'),

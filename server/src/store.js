@@ -63,6 +63,7 @@ export function createUser({ username, email, password, role }) {
     passwordHash: hashPassword(password),
     role: role === 'admin' ? 'admin' : 'user',
     active: true,
+    selectedEntity: null,
     createdAt: new Date().toISOString(),
     lastLoginAt: null,
   };
@@ -96,6 +97,14 @@ export function touchLogin(id) {
     user.lastLoginAt = new Date().toISOString();
     save();
   }
+}
+
+export function setUserSelectedEntity(id, entityId) {
+  const user = findUserById(id);
+  if (!user) return null;
+  user.selectedEntity = entityId ? String(entityId) : null;
+  save();
+  return user.selectedEntity;
 }
 
 export function getHaConfig() {
