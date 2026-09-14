@@ -165,7 +165,6 @@ export default function Settings({ config, onClose, onSaved, onEntitiesSaved }) 
                     >
                       <input type="checkbox" checked={checked} onChange={() => toggle(entity.entityId)} />
                       {entity.name}
-                      {entity.state && <span className="chip-state">{entity.state}</span>}
                     </label>
                   );
                 })}

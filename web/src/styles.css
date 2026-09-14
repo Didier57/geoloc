@@ -340,11 +340,6 @@ select:focus {
   display: inline-block;
 }
 
-.chip-state {
-  color: var(--muted);
-  font-size: 11px;
-}
-
 .link {
   background: none;
   border: none;

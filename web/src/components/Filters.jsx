@@ -38,7 +38,6 @@ export default function Filters({
               />
               <span className="dot" style={{ background: colors[entity.entityId] }} />
               {entity.name}
-              {entity.state && <span className="chip-state">{entity.state}</span>}
             </label>
           ))}
         </div>

@@ -370,10 +370,7 @@ export default function MapView({ tracks, entities, selectedIds, colors }) {
             fillOpacity: 1,
           }}
         >
-          <Tooltip>
-            {entity.name}
-            {entity.state ? ` — ${entity.state}` : ''}
-          </Tooltip>
+          <Tooltip>{entity.name}</Tooltip>
         </CircleMarker>
       ))}
 
