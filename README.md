@@ -1,13 +1,14 @@
 # Geoloc — suivi des déplacements via Home Assistant
 
 Application web pour visualiser sur une carte les déplacements de plusieurs personnes, à partir
-des entités de suivi de position de **Home Assistant** (`device_tracker.*` et `person.*`).
+des entités de suivi de position de **Home Assistant** (toute entité exposant `latitude`/`longitude`).
 
 - Page de connexion (utilisateurs locaux, rôles `user` / `admin`).
 - Configuration de l'adresse Home Assistant + token d'accès longue durée, avec **test de connexion**.
-- Liste automatique des entités géolocalisables.
+- Sélection des entités géolocalisées à suivre, dans la fenêtre **Home Assistant** (admin) : seules
+  celles cochées sont affichées.
 - Carte **Leaflet + OpenStreetMap** (aucune clé API, gratuit).
-- Filtre des personnes et sélection de période (historique via l'API Home Assistant).
+- Sélection du jour (de 00:00 à 24:00) et affichage des trajets (historique via l'API Home Assistant).
 
 ## Architecture
 
@@ -78,8 +79,9 @@ Le front de développement tourne sur `http://localhost:5173` et proxifie `/api`
 1. Connectez-vous avec le compte admin défini dans `.env`.
 2. Cliquez sur **Home Assistant**, saisissez l'adresse (`http://hôte:8123`) et le token, puis
    **Tester**, puis **Enregistrer**.
-3. Les entités de géolocalisation apparaissent dans le filtre « Personnes ».
-4. Sélectionnez les personnes et la période pour afficher les trajets sur la carte.
+3. Dans la section **Entités à afficher**, cochez les entités géolocalisées à suivre puis cliquez sur
+   **Enregistrer la sélection**. Seules ces entités apparaîtront ensuite dans la fenêtre principale.
+4. Choisissez le jour pour afficher les trajets sur la carte.
 5. Le bouton **Utilisateurs** permet de gérer les comptes (admin uniquement).
 
 ## Publication des images

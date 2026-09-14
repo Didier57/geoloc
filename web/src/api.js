@@ -36,8 +36,10 @@ export const api = {
   haConfig: () => request('/api/config/ha'),
   testHa: (payload) => request('/api/config/ha/test', { method: 'POST', body: JSON.stringify(payload) }),
   saveHa: (payload) => request('/api/config/ha', { method: 'POST', body: JSON.stringify(payload) }),
+  saveHaEntities: (entities) =>
+    request('/api/config/ha/entities', { method: 'POST', body: JSON.stringify({ entities }) }),
 
-  entities: () => request('/api/geoloc/entities'),
+  entities: (all) => request(`/api/geoloc/entities${all ? '?all=1' : ''}`),
   reverse: (lat, lng) => request(`/api/geoloc/reverse?lat=${lat}&lng=${lng}`),
   tracks: (entityIds, from, to) => {
     const params = new URLSearchParams({ entities: entityIds.join(','), from });

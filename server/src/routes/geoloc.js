@@ -29,7 +29,13 @@ function requireConfig(req, res, next) {
 
 router.get('/entities', requireConfig, async (req, res) => {
   const states = await fetchStates(req.ha);
-  res.json({ entities: mapTrackableEntities(states) });
+  const all = mapTrackableEntities(states);
+  if (req.query.all === '1') {
+    const ha = getHaConfig();
+    return res.json({ entities: all, selected: Array.isArray(ha?.entities) ? ha.entities : [] });
+  }
+  const selected = new Set(getHaConfig()?.entities || []);
+  res.json({ entities: all.filter((e) => selected.has(e.entityId)) });
 });
 
 router.get('/tracks', requireConfig, async (req, res) => {

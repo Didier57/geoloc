@@ -106,3 +106,11 @@ export function setHaConfig(ha) {
   state.ha = ha;
   save();
 }
+
+export function setHaEntities(entityIds) {
+  if (!state.ha) return null;
+  state.ha.entities = [...new Set((entityIds || []).map(String))];
+  state.ha.entitiesUpdatedAt = new Date().toISOString();
+  save();
+  return state.ha.entities;
+}

@@ -18,8 +18,6 @@ const PALETTE = [
   '#16a085',
 ];
 
-const STORAGE_KEY = 'geoloc.selectedEntities';
-
 function toDateInput(date) {
   const d = new Date(date);
   const offset = d.getTimezoneOffset();
@@ -34,22 +32,11 @@ function endOfDay(value) {
   return new Date(`${value}T23:59:59.999`);
 }
 
-function loadStoredSelection() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
 export default function Dashboard({ user, onLogout }) {
   const isAdmin = user.role === 'admin';
 
   const [config, setConfig] = useState(null);
   const [entities, setEntities] = useState([]);
-  const [selectedIds, setSelectedIds] = useState(loadStoredSelection);
   const [date, setDate] = useState(() => toDateInput(new Date()));
   const [tracks, setTracks] = useState([]);
   const [error, setError] = useState('');
@@ -57,19 +44,11 @@ export default function Dashboard({ user, onLogout }) {
   const [showSettings, setShowSettings] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(selectedIds));
-    } catch {
-      // ignore
-    }
-  }, [selectedIds]);
-
   const loadConfig = useCallback(async () => {
     try {
       setConfig(await api.haConfig());
     } catch {
-      setConfig({ configured: false, url: '', tokenSet: false });
+      setConfig({ configured: false, url: '', tokenSet: false, entities: [] });
     }
   }, []);
 
@@ -77,7 +56,6 @@ export default function Dashboard({ user, onLogout }) {
     try {
       const { entities: list } = await api.entities();
       setEntities(list);
-      setSelectedIds((prev) => prev.filter((id) => list.some((e) => e.entityId === id)));
       setError('');
     } catch (err) {
       if (err.status === 409) {
@@ -96,6 +74,8 @@ export default function Dashboard({ user, onLogout }) {
   useEffect(() => {
     if (config?.configured) loadEntities();
   }, [config?.configured, loadEntities]);
+
+  const selectedIds = useMemo(() => entities.map((e) => e.entityId), [entities]);
 
   const loadTracks = useCallback(async () => {
     if (!config?.configured || selectedIds.length === 0) {
@@ -122,10 +102,6 @@ export default function Dashboard({ user, onLogout }) {
     loadTracks();
   }, [loadTracks]);
 
-  const toggle = useCallback((id) => {
-    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  }, []);
-
   const colors = useMemo(() => {
     const map = {};
     entities.forEach((entity, index) => {
@@ -133,6 +109,11 @@ export default function Dashboard({ user, onLogout }) {
     });
     return map;
   }, [entities]);
+
+  async function handleSettingsSaved() {
+    await loadConfig();
+    loadEntities();
+  }
 
   return (
     <div className="app-shell">
@@ -176,19 +157,10 @@ export default function Dashboard({ user, onLogout }) {
         </div>
       ) : (
         <>
-          <Filters
-            entities={entities}
-            selectedIds={selectedIds}
-            onToggle={toggle}
-            onSelectAll={() => setSelectedIds(entities.map((e) => e.entityId))}
-            onClear={() => setSelectedIds([])}
-            date={date}
-            onDate={setDate}
-            colors={colors}
-          />
+          <Filters entities={entities} date={date} onDate={setDate} colors={colors} />
           {error && <div className="error banner">{error}</div>}
           <div className="map-wrap">
-            <MapView tracks={tracks} entities={entities} selectedIds={selectedIds} colors={colors} />
+            <MapView tracks={tracks} entities={entities} colors={colors} />
             {loading && <div className="map-loading">Chargement…</div>}
           </div>
         </>
@@ -198,9 +170,10 @@ export default function Dashboard({ user, onLogout }) {
         <Settings
           config={config}
           onClose={() => setShowSettings(false)}
-          onSaved={() => {
-            setShowSettings(false);
+          onSaved={handleSettingsSaved}
+          onEntitiesSaved={() => {
             loadConfig();
+            loadEntities();
           }}
         />
       )}

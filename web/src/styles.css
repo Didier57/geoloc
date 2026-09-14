@@ -208,6 +208,26 @@ select:focus {
   border-color: #93c5fd;
 }
 
+.chip.static {
+  cursor: default;
+}
+
+.entities-section {
+  margin-top: 18px;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 14px;
+}
+
+.entities-list {
+  max-height: 240px;
+  overflow-y: auto;
+  margin: 8px 0;
+}
+
+.entities-section .modal-actions {
+  margin-top: 10px;
+}
+
 .chip input[type='checkbox'] {
   width: 14px;
   height: 14px;

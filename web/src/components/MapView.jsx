@@ -4,7 +4,7 @@ import { api } from '../api.js';
 
 const MAX_POINT_MARKERS = 500;
 
-function FitBounds({ tracks, entities, selectedIds }) {
+function FitBounds({ tracks, entities }) {
   const map = useMap();
 
   useEffect(() => {
@@ -13,7 +13,7 @@ function FitBounds({ tracks, entities, selectedIds }) {
       track.points.forEach((point) => points.push([point.latitude, point.longitude]));
     });
     entities
-      .filter((entity) => selectedIds.includes(entity.entityId) && entity.latitude != null)
+      .filter((entity) => entity.latitude != null)
       .forEach((entity) => points.push([entity.latitude, entity.longitude]));
 
     if (points.length === 1) {
@@ -21,7 +21,7 @@ function FitBounds({ tracks, entities, selectedIds }) {
     } else if (points.length > 1) {
       map.fitBounds(points, { padding: [30, 30] });
     }
-  }, [tracks, entities, selectedIds, map]);
+  }, [tracks, entities, map]);
 
   return null;
 }
@@ -49,10 +49,8 @@ function samplePoints(points) {
   return result;
 }
 
-export default function MapView({ tracks, entities, selectedIds, colors }) {
-  const visibleEntities = entities.filter(
-    (entity) => selectedIds.includes(entity.entityId) && entity.latitude != null,
-  );
+export default function MapView({ tracks, entities, colors }) {
+  const visibleEntities = entities.filter((entity) => entity.latitude != null);
   const [addresses, setAddresses] = useState({});
   const requested = useRef(new Set());
 
@@ -131,7 +129,7 @@ export default function MapView({ tracks, entities, selectedIds, colors }) {
         </CircleMarker>
       ))}
 
-      <FitBounds tracks={tracks} entities={entities} selectedIds={selectedIds} />
+      <FitBounds tracks={tracks} entities={entities} />
     </MapContainer>
   );
 }
