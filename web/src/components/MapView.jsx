@@ -47,11 +47,11 @@ function formatTime(value) {
   return date.toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
 }
 
-function formatClock(value) {
+function formatDateTime(value) {
   if (!value) return '—';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  return date.toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
 }
 
 function formatDuration(ms) {
@@ -253,7 +253,7 @@ export default function MapView({ tracks, entities, selectedIds, colors }) {
                 <br />
                 <span className="popup-stay">Arrêt sur place</span>
                 <br />
-                De {formatClock(stay.start)} à {formatClock(stay.end)}
+                De {formatDateTime(stay.start)} à {formatDateTime(stay.end)}
                 <br />
                 Durée : {formatDuration(stay.durationMs)}
                 <br />
