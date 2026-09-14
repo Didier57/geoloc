@@ -18,6 +18,8 @@ des entités de suivi de position de **Home Assistant** (toute entité exposant 
   gris immobile) et de petites **flèches** indiquent le sens de déplacement.
 - **Arrêts sur place** : un repère violet signale les lieux où la personne est restée (rayon 200 m
   pendant au moins 5 min) ; au clic, l'adresse et la plage horaire de l'arrêt s'affichent.
+- **Commerces à proximité** : en zoomant près d'un arrêt, les noms des commerces, restaurants et
+  lieux d'intérêt alentour (OpenStreetMap / Overpass) apparaissent sur la carte.
 - **Mode sombre / clair** : bouton lune/soleil en haut à droite du bandeau, préférence mémorisée
   dans le navigateur (suit le thème du système par défaut).
 
@@ -72,6 +74,14 @@ détail (mode et vitesse) apparaît dans l'infobulle d'un point.
 Lorsque plusieurs points successifs restent dans un rayon de **200 m** pendant au moins **5 minutes**,
 un **repère violet** (épingle) est affiché sur la carte. Cliquez dessus pour voir le **lieu**
 (adresse géocodée) et la **plage horaire** de l'arrêt (de … à …) avec sa durée.
+
+### Commerces et lieux autour des arrêts
+
+À partir d'un **zoom rapproché (≥ 17)**, les commerces, restaurants et autres lieux d'intérêt
+(OpenStreetMap, catégories `amenity`, `shop`, `tourism`, `leisure`) situés dans un rayon de **150 m**
+autour de chaque arrêt sont affichés par leur nom, avec un point jaune. Les données proviennent de
+l'API **Overpass** (sans clé) ; les réponses sont mises en cache 24 h côté serveur pour limiter les
+appels.
 
 ## Prérequis
 

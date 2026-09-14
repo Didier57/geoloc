@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CircleMarker,
   MapContainer,
@@ -8,6 +8,7 @@ import {
   TileLayer,
   Tooltip,
   useMap,
+  useMapEvents,
 } from 'react-leaflet';
 import { divIcon } from 'leaflet';
 import { api } from '../api.js';
@@ -17,6 +18,25 @@ const MAX_POINT_MARKERS = 500;
 const MAX_ARROWS = 40;
 const ARROW_STEP_KM = 0.3;
 const STAY_COLOR = '#7c3aed';
+const PLACES_MIN_ZOOM = 17;
+const PLACES_RADIUS_M = 150;
+const MAX_PLACE_MARKERS = 80;
+
+function ZoomWatcher({ onChange }) {
+  const map = useMapEvents({
+    zoomend: () => onChange(map.getZoom()),
+  });
+
+  useEffect(() => {
+    onChange(map.getZoom());
+  }, [map, onChange]);
+
+  return null;
+}
+
+function coordKey(latitude, longitude) {
+  return `${Number(latitude).toFixed(5)},${Number(longitude).toFixed(5)}`;
+}
 
 function FitBounds({ tracks, entities }) {
   const map = useMap();
@@ -150,6 +170,54 @@ export default function MapView({ tracks, entities, selectedIds, colors }) {
   });
   const [addresses, setAddresses] = useState({});
   const requested = useRef(new Set());
+  const [zoom, setZoom] = useState(6);
+  const [places, setPlaces] = useState({});
+  const placesRequested = useRef(new Set());
+
+  const stays = useMemo(
+    () =>
+      tracks.flatMap((track) =>
+        detectStays(track.points).map((stay, index) => ({
+          ...stay,
+          key: `${track.entityId}-stay-${index}-${stay.latitude}-${stay.longitude}`,
+          entityId: track.entityId,
+          name: names[track.entityId] || track.name || track.entityId,
+        })),
+      ),
+    [tracks, entities],
+  );
+
+  useEffect(() => {
+    if (zoom < PLACES_MIN_ZOOM) return;
+    stays.forEach((stay) => {
+      const key = coordKey(stay.latitude, stay.longitude);
+      if (placesRequested.current.has(key)) return;
+      placesRequested.current.add(key);
+      api
+        .places(stay.latitude, stay.longitude, PLACES_RADIUS_M)
+        .then(({ places: list }) => {
+          setPlaces((prev) => ({ ...prev, [key]: list || [] }));
+        })
+        .catch(() => {
+          setPlaces((prev) => ({ ...prev, [key]: [] }));
+        });
+    });
+  }, [zoom, stays]);
+
+  const placeMarkers = [];
+  if (zoom >= PLACES_MIN_ZOOM) {
+    const seen = new Set();
+    for (const stay of stays) {
+      if (placeMarkers.length >= MAX_PLACE_MARKERS) break;
+      const list = places[coordKey(stay.latitude, stay.longitude)] || [];
+      for (const place of list) {
+        if (placeMarkers.length >= MAX_PLACE_MARKERS) break;
+        if (seen.has(place.id)) continue;
+        seen.add(place.id);
+        placeMarkers.push(place);
+      }
+    }
+  }
 
   const loadAddress = useCallback((key, latitude, longitude) => {
     if (requested.current.has(key)) return;
@@ -238,33 +306,43 @@ export default function MapView({ tracks, entities, selectedIds, colors }) {
         });
       })}
 
-      {tracks.map((track) =>
-        detectStays(track.points).map((stay, index) => {
-          const key = `${track.entityId}-stay-${index}-${stay.latitude}-${stay.longitude}`;
-          return (
-            <Marker
-              key={key}
-              position={[stay.latitude, stay.longitude]}
-              icon={stayIcon()}
-              eventHandlers={{ click: () => loadAddress(key, stay.latitude, stay.longitude) }}
-            >
-              <Popup>
-                <strong>{names[track.entityId] || track.name || track.entityId}</strong>
-                <br />
-                <span className="popup-stay">Arrêt sur place</span>
-                <br />
-                De {formatDateTime(stay.start)} à {formatDateTime(stay.end)}
-                <br />
-                Durée : {formatDuration(stay.durationMs)}
-                <br />
-                <span className="popup-address">
-                  {addresses[key] || 'Cliquez pour voir le lieu'}
-                </span>
-              </Popup>
-            </Marker>
-          );
-        }),
-      )}
+      {stays.map((stay) => (
+        <Marker
+          key={stay.key}
+          position={[stay.latitude, stay.longitude]}
+          icon={stayIcon()}
+          eventHandlers={{ click: () => loadAddress(stay.key, stay.latitude, stay.longitude) }}
+        >
+          <Popup>
+            <strong>{stay.name}</strong>
+            <br />
+            <span className="popup-stay">Arrêt sur place</span>
+            <br />
+            De {formatDateTime(stay.start)} à {formatDateTime(stay.end)}
+            <br />
+            Durée : {formatDuration(stay.durationMs)}
+            <br />
+            <span className="popup-address">
+              {addresses[stay.key] || 'Cliquez pour voir le lieu'}
+            </span>
+          </Popup>
+        </Marker>
+      ))}
+
+      {placeMarkers.map((place) => (
+        <CircleMarker
+          key={place.id}
+          center={[place.latitude, place.longitude]}
+          radius={4}
+          pathOptions={{ color: '#b45309', weight: 2, fillColor: '#fbbf24', fillOpacity: 1 }}
+        >
+          <Tooltip permanent direction="right" offset={[6, 0]} className="place-label">
+            {place.name}
+          </Tooltip>
+        </CircleMarker>
+      ))}
+
+      <ZoomWatcher onChange={setZoom} />
 
       {visibleEntities.map((entity) => (
         <CircleMarker

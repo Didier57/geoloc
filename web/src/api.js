@@ -45,6 +45,8 @@ export const api = {
   archive: (force) =>
     request('/api/geoloc/archive', { method: 'POST', body: JSON.stringify({ force: !!force }) }),
   reverse: (lat, lng) => request(`/api/geoloc/reverse?lat=${lat}&lng=${lng}`),
+  places: (lat, lng, radius) =>
+    request(`/api/geoloc/places?lat=${lat}&lng=${lng}&radius=${radius || 150}`),
   tracks: (entityIds, from, to) => {
     const params = new URLSearchParams({ entities: entityIds.join(','), from });
     if (to) params.set('to', to);

@@ -4,6 +4,7 @@ import { getHaConfig } from '../store.js';
 import { decryptSecret } from '../utils/crypto.js';
 import { fetchHistory, fetchStates, mapTrackableEntities } from '../homeassistant.js';
 import { reverseGeocode } from '../geocode.js';
+import { nearbyPlaces } from '../places.js';
 import { hasDay, readDay, saveDay } from '../history.js';
 import { dayStart, dayEnd, listDays, todayString } from '../dates.js';
 import { runArchive } from '../archive.js';
@@ -130,6 +131,21 @@ router.get('/reverse', async (req, res) => {
     res.json({ address });
   } catch (err) {
     res.status(502).json({ error: 'geocode_failed', message: err.message });
+  }
+});
+
+router.get('/places', async (req, res) => {
+  const lat = Number(req.query.lat);
+  const lng = Number(req.query.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return res.status(400).json({ error: 'invalid_coords', message: 'Coordonnées invalides.' });
+  }
+  const radius = Math.min(500, Math.max(50, Number(req.query.radius) || 150));
+  try {
+    const places = await nearbyPlaces(lat, lng, radius);
+    res.json({ places });
+  } catch (err) {
+    res.status(502).json({ error: 'places_failed', message: err.message });
   }
 });
 
