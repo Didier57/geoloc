@@ -36,6 +36,7 @@ export const api = {
   deleteUser: (id) => request(`/api/users/${id}`, { method: 'DELETE' }),
 
   haConfig: () => request('/api/config/ha'),
+  haStatus: () => request('/api/config/ha/status'),
   testHa: (payload) => request('/api/config/ha/test', { method: 'POST', body: JSON.stringify(payload) }),
   saveHa: (payload) => request('/api/config/ha', { method: 'POST', body: JSON.stringify(payload) }),
   saveHaEntities: (entities) =>

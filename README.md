@@ -51,10 +51,14 @@ Home Assistant ne conserve qu'un nombre limité de jours d'historique (8 jours p
   sont pas déjà archivés.
 - **Manuellement**, le bouton « Synchroniser » force la mise à jour de la base pour les jours
   couverts par le rattrapage, puis recharge les entités et la carte.
+- **À la connexion**, une synchronisation est lancée automatiquement pour compléter les jours
+  manquants.
 
 Lors d'une recherche sur la page d'accueil, le serveur interroge **d'abord la base locale** ; si le
 jour n'est pas archivé (par exemple aujourd'hui), il interroge **Home Assistant** ; si aucune donnée
-n'existe, la page affiche « Pas de données pour cette date. ».
+n'existe, la page affiche « Pas de données pour cette date. ». Un jour sans aucune position n'est
+**pas enregistré** dans un fichier : le serveur retient simplement qu'il a déjà été vérifié, afin de
+ne pas réinterroger Home Assistant inutilement.
 
 ## Analyse des déplacements (marche / voiture)
 

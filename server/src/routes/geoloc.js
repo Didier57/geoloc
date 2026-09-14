@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAuth } from '../auth.js';
-import { getHaConfig } from '../store.js';
+import { getHaConfig, markEmptyDay, hasEmptyDay, clearEmptyDay } from '../store.js';
 import { decryptSecret } from '../utils/crypto.js';
 import { fetchHistory, fetchStates, mapTrackableEntities } from '../homeassistant.js';
 import { reverseGeocode } from '../geocode.js';
@@ -68,8 +68,13 @@ router.get('/tracks', requireConfig, async (req, res) => {
     const missing = [];
     for (const id of entityIds) {
       if (isPast && hasDay(id, day)) {
-        dbPoints.get(id).push(...readDay(id, day));
-        fromDb = true;
+        const stored = readDay(id, day);
+        if (stored.length > 0) {
+          dbPoints.get(id).push(...stored);
+          fromDb = true;
+        }
+      } else if (isPast && hasEmptyDay(id, day)) {
+        // Jour déjà vérifié et archivé sans données : inutile de réinterroger Home Assistant.
       } else if (day <= today) {
         missing.push(id);
       }
@@ -88,7 +93,14 @@ router.get('/tracks', requireConfig, async (req, res) => {
     const byEntity = new Map(tracks.map((track) => [track.entityId, track.points]));
     for (const id of missing) {
       const points = byEntity.get(id) || [];
-      if (day < today) saveDay(id, day, points);
+      if (day < today) {
+        if (points.length > 0) {
+          saveDay(id, day, points);
+          clearEmptyDay(id, day);
+        } else {
+          markEmptyDay(id, day);
+        }
+      }
       haPoints.get(id).push(...points);
       if (points.length > 0) fromHa = true;
     }

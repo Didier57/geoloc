@@ -1,5 +1,5 @@
 import { config } from './config.js';
-import { getHaConfig } from './store.js';
+import { getHaConfig, hasEmptyDay, markEmptyDay, clearEmptyDay } from './store.js';
 import { decryptSecret } from './utils/crypto.js';
 import { fetchHistory } from './homeassistant.js';
 import { dayStart, dayEnd, shiftDay, todayString } from './dates.js';
@@ -31,7 +31,9 @@ export async function runArchive({ force = false } = {}) {
   for (let offset = config.archiveBackfillDays; offset >= 1; offset -= 1) {
     const dayString = shiftDay(today, -offset);
 
-    const missing = force ? entityIds : entityIds.filter((id) => !hasDay(id, dayString));
+    const missing = force
+      ? entityIds
+      : entityIds.filter((id) => !hasDay(id, dayString) && !hasEmptyDay(id, dayString));
     if (missing.length === 0) continue;
 
     let tracks;
@@ -45,10 +47,16 @@ export async function runArchive({ force = false } = {}) {
 
     const byEntity = new Map(tracks.map((track) => [track.entityId, track.points]));
     for (const id of missing) {
-      saveDay(id, dayString, byEntity.get(id) || []);
-      archived += 1;
+      const points = byEntity.get(id) || [];
+      if (points.length > 0) {
+        saveDay(id, dayString, points);
+        clearEmptyDay(id, dayString);
+        archived += 1;
+      } else if (!hasDay(id, dayString)) {
+        markEmptyDay(id, dayString);
+      }
     }
-    console.log(`[archive] ${dayString}: ${missing.length} entité(s) archivée(s)`);
+    console.log(`[archive] ${dayString}: ${missing.length} entité(s) traitée(s)`);
   }
 
   return { archived, failures };

@@ -3,7 +3,7 @@ import { dirname } from 'node:path';
 import { config } from './config.js';
 import { hashPassword } from './utils/password.js';
 
-const emptyState = () => ({ users: [], nextUserId: 1, ha: null });
+const emptyState = () => ({ users: [], nextUserId: 1, ha: null, emptyDays: {} });
 
 let state = emptyState();
 
@@ -105,6 +105,30 @@ export function setUserSelectedEntity(id, entityId) {
   user.selectedEntity = entityId ? String(entityId) : null;
   save();
   return user.selectedEntity;
+}
+
+export function hasEmptyDay(entityId, day) {
+  const list = state.emptyDays?.[String(entityId)];
+  return Array.isArray(list) && list.includes(day);
+}
+
+export function markEmptyDay(entityId, day) {
+  const key = String(entityId);
+  if (!state.emptyDays) state.emptyDays = {};
+  const list = Array.isArray(state.emptyDays[key]) ? state.emptyDays[key] : [];
+  if (list.includes(day)) return;
+  list.push(day);
+  list.sort();
+  state.emptyDays[key] = list;
+  save();
+}
+
+export function clearEmptyDay(entityId, day) {
+  const key = String(entityId);
+  const list = state.emptyDays?.[key];
+  if (!Array.isArray(list) || !list.includes(day)) return;
+  state.emptyDays[key] = list.filter((value) => value !== day);
+  save();
 }
 
 export function getHaConfig() {

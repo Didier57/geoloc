@@ -52,14 +52,20 @@ export default function Dashboard({ user, onLogout }) {
   const [showSettings, setShowSettings] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
   const [showBackup, setShowBackup] = useState(false);
+  const autoSyncDone = useRef(false);
 
   const loadConfig = useCallback(async () => {
     try {
-      setConfig(await api.haConfig());
+      if (isAdmin) {
+        setConfig(await api.haConfig());
+      } else {
+        const status = await api.haStatus();
+        setConfig({ configured: Boolean(status.configured), url: '', tokenSet: false, entities: [] });
+      }
     } catch {
       setConfig({ configured: false, url: '', tokenSet: false, entities: [] });
     }
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => {
     selectedRef.current = selectedIds;
@@ -123,6 +129,13 @@ export default function Dashboard({ user, onLogout }) {
     loadTracks();
   }, [loadTracks]);
 
+  useEffect(() => {
+    if (!config?.configured || autoSyncDone.current) return;
+    autoSyncDone.current = true;
+    handleSync(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config?.configured]);
+
   const colors = useMemo(() => {
     const map = {};
     entities.forEach((entity, index) => {
@@ -155,15 +168,15 @@ export default function Dashboard({ user, onLogout }) {
     loadEntities();
   }
 
-  async function handleSync() {
+  async function handleSync(force = true) {
     setSyncing(true);
     setError('');
     try {
-      await api.archive(true);
+      await api.archive(force);
       await loadEntities();
       await loadTracks();
     } catch (err) {
-      setError(err.message);
+      if (err.status !== 409) setError(err.message);
     } finally {
       setSyncing(false);
     }
@@ -200,7 +213,7 @@ export default function Dashboard({ user, onLogout }) {
           {user.username}
           {isAdmin ? ' (admin)' : ''}
         </span>
-        <button className="btn ghost" onClick={handleSync} disabled={syncing}>
+        <button className="btn ghost" onClick={() => handleSync()} disabled={syncing}>
           {syncing ? 'Synchronisation…' : 'Synchroniser'}
         </button>
         {isAdmin && (

@@ -5,6 +5,12 @@ import { decryptSecret, encryptSecret } from '../utils/crypto.js';
 import { fetchStates, mapTrackableEntities, testConnection } from '../homeassistant.js';
 
 const router = Router();
+
+router.get('/status', requireAuth, (req, res) => {
+  const ha = getHaConfig();
+  res.json({ configured: Boolean(ha?.url && ha?.tokenEnc) });
+});
+
 router.use(requireAuth, requireAdmin);
 
 function serialize() {
