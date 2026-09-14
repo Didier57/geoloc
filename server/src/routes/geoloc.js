@@ -4,6 +4,8 @@ import { getHaConfig } from '../store.js';
 import { decryptSecret } from '../utils/crypto.js';
 import { fetchHistory, fetchStates, mapTrackableEntities } from '../homeassistant.js';
 import { reverseGeocode } from '../geocode.js';
+import { hasDay, readDay, saveDay } from '../history.js';
+import { dayStart, dayEnd, listDays, todayString } from '../dates.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -43,14 +45,68 @@ router.get('/tracks', requireConfig, async (req, res) => {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
-  if (entityIds.length === 0) return res.json({ tracks: [] });
+  if (entityIds.length === 0) return res.json({ tracks: [], source: 'none' });
 
   const from = req.query.from;
   if (!from) return res.status(400).json({ error: 'missing_from', message: 'La date de début est requise.' });
-  const to = req.query.to || undefined;
+  const to = req.query.to || from;
 
-  const tracks = await fetchHistory(req.ha, entityIds, from, to);
-  res.json({ tracks });
+  const days = listDays(from, to);
+  const today = todayString();
+  const dbPoints = new Map(entityIds.map((id) => [id, []]));
+  const haPoints = new Map(entityIds.map((id) => [id, []]));
+  const needsHa = new Map();
+  let haError = null;
+  let fromDb = false;
+  let fromHa = false;
+
+  for (const day of days) {
+    const isPast = day < today;
+    const missing = [];
+    for (const id of entityIds) {
+      if (isPast && hasDay(id, day)) {
+        dbPoints.get(id).push(...readDay(id, day));
+        fromDb = true;
+      } else if (day <= today) {
+        missing.push(id);
+      }
+    }
+    if (missing.length > 0) needsHa.set(day, missing);
+  }
+
+  for (const [day, missing] of needsHa) {
+    let tracks;
+    try {
+      tracks = await fetchHistory(req.ha, missing, dayStart(day).toISOString(), dayEnd(day).toISOString());
+    } catch (err) {
+      haError = err.message;
+      continue;
+    }
+    const byEntity = new Map(tracks.map((track) => [track.entityId, track.points]));
+    for (const id of missing) {
+      const points = byEntity.get(id) || [];
+      if (day < today) saveDay(id, day, points);
+      haPoints.get(id).push(...points);
+      if (points.length > 0) fromHa = true;
+    }
+  }
+
+  const tracks = entityIds.map((id) => {
+    const merged = new Map();
+    for (const point of [...dbPoints.get(id), ...haPoints.get(id)]) {
+      if (point?.timestamp) merged.set(point.timestamp, point);
+    }
+    return {
+      entityId: id,
+      points: [...merged.values()].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp)),
+    };
+  });
+
+  const total = tracks.reduce((sum, track) => sum + track.points.length, 0);
+  let source = 'none';
+  if (total > 0) source = fromDb && fromHa ? 'mixed' : fromHa ? 'ha' : 'db';
+
+  res.json({ tracks, source, haError });
 });
 
 router.get('/reverse', async (req, res) => {

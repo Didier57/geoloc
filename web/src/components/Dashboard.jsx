@@ -40,6 +40,7 @@ export default function Dashboard({ user, onLogout }) {
   const [selectedIds, setSelectedIds] = useState([]);
   const [date, setDate] = useState(() => toDateInput(new Date()));
   const [tracks, setTracks] = useState([]);
+  const [source, setSource] = useState('none');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -84,17 +85,20 @@ export default function Dashboard({ user, onLogout }) {
   const loadTracks = useCallback(async () => {
     if (!config?.configured || selectedIds.length === 0) {
       setTracks([]);
+      setSource('none');
       return;
     }
     setLoading(true);
     setError('');
     try {
-      const { tracks: list } = await api.tracks(
+      const data = await api.tracks(
         selectedIds,
         startOfDay(date).toISOString(),
         endOfDay(date).toISOString(),
       );
-      setTracks(list);
+      setTracks(data.tracks || []);
+      setSource(data.source || 'none');
+      if (data.haError) setError(data.haError);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -133,6 +137,8 @@ export default function Dashboard({ user, onLogout }) {
     next.setDate(next.getDate() + delta);
     setDate(toDateInput(next));
   }
+
+  const hasPoints = tracks.some((track) => track.points.length > 0);
 
   async function handleSettingsSaved() {
     await loadConfig();
@@ -193,6 +199,9 @@ export default function Dashboard({ user, onLogout }) {
             onShiftDay={shiftDay}
           />
           {error && <div className="error banner">{error}</div>}
+          {!loading && selectedIds.length > 0 && !hasPoints && (
+            <div className="empty banner">Pas de données pour cette date.</div>
+          )}
           <div className="map-wrap">
             <MapView tracks={tracks} entities={entities} selectedIds={selectedIds} colors={colors} />
             {loading && <div className="map-loading">Chargement…</div>}

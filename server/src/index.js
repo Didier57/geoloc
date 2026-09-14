@@ -4,6 +4,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import { config } from './config.js';
 import { ensureAdmin } from './bootstrap.js';
+import { startArchiver } from './archive.js';
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
 import configRoutes from './routes/config.js';
@@ -29,6 +30,7 @@ app.use((err, req, res, next) => {
 });
 
 ensureAdmin();
+startArchiver();
 
 app.listen(config.port, () => {
   console.log(`[server] à l'écoute sur le port ${config.port}`);

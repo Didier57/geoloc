@@ -54,6 +54,10 @@ export default function MapView({ tracks, entities, selectedIds, colors }) {
   const visibleEntities = entities.filter(
     (entity) => entity.latitude != null && selected.has(entity.entityId),
   );
+  const names = {};
+  entities.forEach((entity) => {
+    names[entity.entityId] = entity.name;
+  });
   const [addresses, setAddresses] = useState({});
   const requested = useRef(new Set());
 
@@ -101,7 +105,7 @@ export default function MapView({ tracks, entities, selectedIds, colors }) {
               eventHandlers={{ click: () => loadAddress(key, point.latitude, point.longitude) }}
             >
               <Popup>
-                <strong>{track.name}</strong>
+                <strong>{names[track.entityId] || track.name || track.entityId}</strong>
                 <br />
                 {formatTime(point.timestamp)}
                 {point.accuracy != null ? ` · ±${Math.round(point.accuracy)} m` : ''}

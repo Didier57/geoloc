@@ -15,6 +15,7 @@ export const config = {
   cookieSecure: boolFromEnv(process.env.COOKIE_SECURE) ?? appUrl.startsWith('https://'),
   isProduction: process.env.NODE_ENV === 'production',
   dataFile: process.env.DATA_FILE || './data/geoloc.json',
+  archiveBackfillDays: Math.max(1, Number(process.env.ARCHIVE_BACKFILL_DAYS || 8)),
   admin: {
     username: process.env.ADMIN_USERNAME || 'admin',
     email: process.env.ADMIN_EMAIL || '',
