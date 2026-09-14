@@ -10,6 +10,9 @@ des entités de suivi de position de **Home Assistant** (toute entité exposant 
 - Carte **Leaflet + OpenStreetMap** (aucune clé API, gratuit).
 - Sélection du jour (de 00:00 à 24:00), navigation jour précédent/suivant, et affichage des trajets
   (archivés localement, sinon lus en direct depuis Home Assistant).
+- **Analyse marche / voiture** : chaque point est classé d'après la vitesse calculée entre deux
+  positions successives. Le tracé prend la couleur correspondante (vert à pied, rouge en voiture,
+  gris immobile) et de petites **flèches** indiquent le sens de déplacement.
 - **Mode sombre / clair** : bouton lune/soleil en haut à droite du bandeau, préférence mémorisée
   dans le navigateur (suit le thème du système par défaut).
 
@@ -44,6 +47,21 @@ Lors d'une recherche sur la page d'accueil, le serveur interroge **d'abord la ba
 jour n'est pas archivé (par exemple aujourd'hui), il interroge **Home Assistant** ; si aucune donnée
 n'existe, la page affiche « Pas de données pour cette date. ».
 
+## Analyse des déplacements (marche / voiture)
+
+À l'import, chaque point est analysé en fonction de l'heure et de la position du point précédent :
+la vitesse est calculée (distance par la formule de Haversine ÷ temps écoulé) et le déplacement est
+classé :
+
+| Vitesse | Mode | Couleur du tracé |
+| --- | --- | --- |
+| < `STILL_MAX_KMH` (2 km/h) | Immobile | gris |
+| entre `STILL_MAX_KMH` et `WALK_MAX_KMH` (8 km/h) | À pied | vert |
+| > `WALK_MAX_KMH` | En voiture | rouge |
+
+Des **flèches** sont placées régulièrement sur le tracé pour indiquer le sens de déplacement. Le
+détail (mode et vitesse) apparaît dans l'infobulle d'un point.
+
 ## Prérequis
 
 - Un Home Assistant accessible depuis le serveur.
@@ -64,6 +82,8 @@ Copiez `.env.example` en `.env` et renseignez au minimum :
 | `ADMIN_PASSWORD` | Mot de passe de l'admin (8 caractères min) |
 | `TZ` | Fuseau horaire du serveur (`Europe/Paris` par défaut) |
 | `ARCHIVE_BACKFILL_DAYS` | Jours rattrapés depuis Home Assistant au démarrage (8 par défaut) |
+| `STILL_MAX_KMH` | Vitesse sous laquelle le device est considéré immobile (2 par défaut) |
+| `WALK_MAX_KMH` | Vitesse sous laquelle un déplacement est « à pied », au dessus « en voiture » (8 par défaut) |
 | `GEOLOC_IMAGE_TAG` | Tag des images GHCR (`latest` par défaut) |
 
 Sous Linux/macOS, générez une clé avec : `openssl rand -hex 32`.

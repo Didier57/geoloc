@@ -7,6 +7,7 @@ import { reverseGeocode } from '../geocode.js';
 import { hasDay, readDay, saveDay } from '../history.js';
 import { dayStart, dayEnd, listDays, todayString } from '../dates.js';
 import { runArchive } from '../archive.js';
+import { classifyTrack } from '../motion.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -97,9 +98,12 @@ router.get('/tracks', requireConfig, async (req, res) => {
     for (const point of [...dbPoints.get(id), ...haPoints.get(id)]) {
       if (point?.timestamp) merged.set(point.timestamp, point);
     }
+    const sorted = [...merged.values()].sort(
+      (a, b) => new Date(a.timestamp) - new Date(b.timestamp),
+    );
     return {
       entityId: id,
-      points: [...merged.values()].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp)),
+      points: classifyTrack(sorted),
     };
   });
 

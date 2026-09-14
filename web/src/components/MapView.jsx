@@ -1,8 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CircleMarker, MapContainer, Polyline, Popup, TileLayer, Tooltip, useMap } from 'react-leaflet';
+import {
+  CircleMarker,
+  MapContainer,
+  Marker,
+  Polyline,
+  Popup,
+  TileLayer,
+  Tooltip,
+  useMap,
+} from 'react-leaflet';
+import { divIcon } from 'leaflet';
 import { api } from '../api.js';
+import { bearingDegrees, haversineKm, MODE_LABELS, modeColor } from '../motion.js';
 
 const MAX_POINT_MARKERS = 500;
+const MAX_ARROWS = 40;
+const ARROW_STEP_KM = 0.3;
 
 function FitBounds({ tracks, entities }) {
   const map = useMap();
@@ -49,6 +62,57 @@ function samplePoints(points) {
   return result;
 }
 
+function buildRuns(points, fallbackColor) {
+  const runs = [];
+  let current = null;
+  for (let i = 1; i < points.length; i += 1) {
+    const previous = points[i - 1];
+    const point = points[i];
+    const mode = point.mode || 'unknown';
+    if (!current || current.mode !== mode) {
+      current = {
+        mode,
+        color: modeColor(mode, fallbackColor),
+        positions: [[previous.latitude, previous.longitude]],
+      };
+      runs.push(current);
+    }
+    current.positions.push([point.latitude, point.longitude]);
+  }
+  return runs;
+}
+
+function arrowSamples(points) {
+  const samples = [];
+  let distance = 0;
+  for (let i = 1; i < points.length && samples.length < MAX_ARROWS; i += 1) {
+    const previous = points[i - 1];
+    const point = points[i];
+    distance += haversineKm(
+      previous.latitude,
+      previous.longitude,
+      point.latitude,
+      point.longitude,
+    );
+    if (distance >= ARROW_STEP_KM) {
+      samples.push(i);
+      distance = 0;
+    }
+  }
+  return samples;
+}
+
+function arrowIcon(bearing, color) {
+  return divIcon({
+    className: 'route-arrow',
+    html: `<div class="route-arrow-inner" style="color:${color};transform:rotate(${Math.round(
+      bearing,
+    )}deg)"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M12 2l7 18-7-5-7 5z" fill="currentColor"/></svg></div>`,
+    iconSize: [16, 16],
+    iconAnchor: [8, 8],
+  });
+}
+
 export default function MapView({ tracks, entities, selectedIds, colors }) {
   const selected = new Set(selectedIds || []);
   const visibleEntities = entities.filter(
@@ -82,20 +146,44 @@ export default function MapView({ tracks, entities, selectedIds, colors }) {
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
 
-      {tracks.map((track) =>
-        track.points.length > 1 ? (
+      {tracks.map((track) => {
+        const fallbackColor = colors[track.entityId] || '#2563eb';
+        return buildRuns(track.points, fallbackColor).map((run, index) => (
           <Polyline
-            key={track.entityId}
-            positions={track.points.map((point) => [point.latitude, point.longitude])}
-            pathOptions={{ color: colors[track.entityId] || '#2563eb', weight: 4, opacity: 0.85 }}
+            key={`${track.entityId}-run-${index}-${run.mode}`}
+            positions={run.positions}
+            pathOptions={{ color: run.color, weight: 4, opacity: 0.85 }}
           />
-        ) : null,
-      )}
+        ));
+      })}
 
       {tracks.map((track) => {
-        const color = colors[track.entityId] || '#2563eb';
+        const fallbackColor = colors[track.entityId] || '#2563eb';
+        return arrowSamples(track.points).map((index) => {
+          const previous = track.points[index - 1];
+          const point = track.points[index];
+          const bearing = bearingDegrees(
+            previous.latitude,
+            previous.longitude,
+            point.latitude,
+            point.longitude,
+          );
+          return (
+            <Marker
+              key={`${track.entityId}-arrow-${index}`}
+              position={[point.latitude, point.longitude]}
+              icon={arrowIcon(bearing, modeColor(point.mode, fallbackColor))}
+              interactive={false}
+            />
+          );
+        });
+      })}
+
+      {tracks.map((track) => {
+        const fallbackColor = colors[track.entityId] || '#2563eb';
         return samplePoints(track.points).map(({ point, index }) => {
           const key = `${track.entityId}-${index}-${point.latitude}-${point.longitude}`;
+          const color = modeColor(point.mode, fallbackColor);
           return (
             <CircleMarker
               key={key}
@@ -109,6 +197,13 @@ export default function MapView({ tracks, entities, selectedIds, colors }) {
                 <br />
                 {formatTime(point.timestamp)}
                 {point.accuracy != null ? ` · ±${Math.round(point.accuracy)} m` : ''}
+                {point.mode ? (
+                  <>
+                    <br />
+                    {MODE_LABELS[point.mode] || point.mode}
+                    {point.speed != null ? ` · ${point.speed} km/h` : ''}
+                  </>
+                ) : null}
                 <br />
                 <span className="popup-address">{addresses[key] || 'Cliquez pour voir l’adresse'}</span>
               </Popup>

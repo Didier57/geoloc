@@ -1,3 +1,5 @@
+import { classifyTrack } from './motion.js';
+
 export class HomeAssistantError extends Error {
   constructor(message, status) {
     super(message);
@@ -95,7 +97,7 @@ export async function fetchHistory(cfg, entityIds, startIso, endIso) {
     tracks.push({
       entityId: first.entity_id,
       name: first.attributes?.friendly_name || first.entity_id,
-      points,
+      points: classifyTrack(points),
     });
   }
 

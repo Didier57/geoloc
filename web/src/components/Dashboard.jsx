@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { useTheme } from '../theme.js';
+import { MODE_COLORS, MODE_LABELS, MODE_ORDER } from '../motion.js';
 import Filters from './Filters.jsx';
 import MapView from './MapView.jsx';
 import Settings from './Settings.jsx';
@@ -243,6 +244,14 @@ export default function Dashboard({ user, onLogout }) {
           )}
           <div className="map-wrap">
             <MapView tracks={tracks} entities={entities} selectedIds={selectedIds} colors={colors} />
+            <div className="legend">
+              {MODE_ORDER.map((mode) => (
+                <span key={mode}>
+                  <i style={{ background: MODE_COLORS[mode] }} />
+                  {MODE_LABELS[mode]}
+                </span>
+              ))}
+            </div>
             {loading && <div className="map-loading">Chargement…</div>}
           </div>
         </>
