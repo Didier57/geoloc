@@ -18,7 +18,9 @@ const PALETTE = [
   '#16a085',
 ];
 
-function toInput(date) {
+const STORAGE_KEY = 'geoloc.selectedEntities';
+
+function toDateInput(date) {
   const d = new Date(date);
   const offset = d.getTimezoneOffset();
   return new Date(d.getTime() - offset * 60000).toISOString().slice(0, 10);
@@ -32,19 +34,36 @@ function endOfDay(value) {
   return new Date(`${value}T23:59:59.999`);
 }
 
+function loadStoredSelection() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 export default function Dashboard({ user, onLogout }) {
   const isAdmin = user.role === 'admin';
 
   const [config, setConfig] = useState(null);
   const [entities, setEntities] = useState([]);
-  const [selectedIds, setSelectedIds] = useState([]);
-  const [from, setFrom] = useState(() => toInput(new Date(Date.now() - 24 * 3600 * 1000)));
-  const [to, setTo] = useState(() => toInput(new Date()));
+  const [selectedIds, setSelectedIds] = useState(loadStoredSelection);
+  const [date, setDate] = useState(() => toDateInput(new Date()));
   const [tracks, setTracks] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(selectedIds));
+    } catch {
+      // ignore
+    }
+  }, [selectedIds]);
 
   const loadConfig = useCallback(async () => {
     try {
@@ -58,7 +77,7 @@ export default function Dashboard({ user, onLogout }) {
     try {
       const { entities: list } = await api.entities();
       setEntities(list);
-      setSelectedIds((prev) => (prev.length > 0 ? prev : list.filter((e) => e.latitude != null).map((e) => e.entityId)));
+      setSelectedIds((prev) => prev.filter((id) => list.some((e) => e.entityId === id)));
       setError('');
     } catch (err) {
       if (err.status === 409) {
@@ -88,8 +107,8 @@ export default function Dashboard({ user, onLogout }) {
     try {
       const { tracks: list } = await api.tracks(
         selectedIds,
-        startOfDay(from).toISOString(),
-        endOfDay(to).toISOString(),
+        startOfDay(date).toISOString(),
+        endOfDay(date).toISOString(),
       );
       setTracks(list);
     } catch (err) {
@@ -97,24 +116,11 @@ export default function Dashboard({ user, onLogout }) {
     } finally {
       setLoading(false);
     }
-  }, [config?.configured, selectedIds, from, to]);
+  }, [config?.configured, selectedIds, date]);
 
   useEffect(() => {
     loadTracks();
   }, [loadTracks]);
-
-  const applyQuick = useCallback((days, todayOnly = false) => {
-    const end = new Date();
-    let start;
-    if (todayOnly) {
-      start = new Date(end);
-      start.setHours(0, 0, 0, 0);
-    } else {
-      start = new Date(end.getTime() - days * 24 * 3600 * 1000);
-    }
-    setFrom(toInput(start));
-    setTo(toInput(end));
-  }, []);
 
   const toggle = useCallback((id) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -137,11 +143,9 @@ export default function Dashboard({ user, onLogout }) {
           {user.username}
           {isAdmin ? ' (admin)' : ''}
         </span>
-        {isAdmin && (
-          <button className="btn ghost" onClick={loadEntities}>
-            Actualiser
-          </button>
-        )}
+        <button className="btn ghost" onClick={loadEntities}>
+          Synchroniser
+        </button>
         {isAdmin && (
           <button className="btn ghost" onClick={() => setShowSettings(true)}>
             Home Assistant
@@ -178,11 +182,8 @@ export default function Dashboard({ user, onLogout }) {
             onToggle={toggle}
             onSelectAll={() => setSelectedIds(entities.map((e) => e.entityId))}
             onClear={() => setSelectedIds([])}
-            from={from}
-            to={to}
-            onFrom={setFrom}
-            onTo={setTo}
-            onQuick={applyQuick}
+            date={date}
+            onDate={setDate}
             colors={colors}
           />
           {error && <div className="error banner">{error}</div>}

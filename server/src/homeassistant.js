@@ -1,5 +1,3 @@
-import { config } from './config.js';
-
 export class HomeAssistantError extends Error {
   constructor(message, status) {
     super(message);
@@ -49,7 +47,6 @@ export async function fetchStates(cfg) {
 
 export function mapTrackableEntities(states) {
   return states
-    .filter((s) => /^(device_tracker|person)\./.test(s.entity_id || ''))
     .map((s) => ({
       entityId: s.entity_id,
       name: s.attributes?.friendly_name || s.entity_id,
@@ -63,25 +60,8 @@ export function mapTrackableEntities(states) {
       picture: s.attributes?.entity_picture || null,
       lastUpdated: s.last_updated || s.last_changed || null,
     }))
-    .filter((entity) => matchesAllowlist(entity, config.entityAllowlist))
+    .filter((entity) => entity.latitude !== null && entity.longitude !== null)
     .sort((a, b) => a.name.localeCompare(b.name));
-}
-
-function slug(value) {
-  return String(value)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '');
-}
-
-function matchesAllowlist(entity, allowlist) {
-  if (!allowlist || allowlist.length === 0) return true;
-  const name = String(entity.name || '').toLowerCase();
-  const entityId = String(entity.entityId || '').toLowerCase();
-  return allowlist.some((entry) => {
-    const s = slug(entry);
-    return name === entry || entityId === entry || entityId === `${entity.domain}.${s}` || entityId.endsWith(`.${s}`);
-  });
 }
 
 export async function fetchHistory(cfg, entityIds, startIso, endIso) {

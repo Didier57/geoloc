@@ -208,6 +208,14 @@ select:focus {
   border-color: #93c5fd;
 }
 
+.chip input[type='checkbox'] {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: #2563eb;
+  flex: none;
+}
+
 .dot {
   width: 10px;
   height: 10px;
@@ -236,6 +244,8 @@ select:focus {
 .date-row {
   display: flex;
   gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .map-wrap {

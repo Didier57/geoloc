@@ -4,18 +4,15 @@ export default function Filters({
   onToggle,
   onSelectAll,
   onClear,
-  from,
-  to,
-  onFrom,
-  onTo,
-  onQuick,
+  date,
+  onDate,
   colors,
 }) {
   return (
     <div className="filters">
       <div className="filter-block">
         <div className="filter-head">
-          <span>Personnes</span>
+          <span>Entités géolocalisées</span>
           <button type="button" className="link" onClick={onSelectAll}>
             Tout
           </button>
@@ -24,47 +21,37 @@ export default function Filters({
           </button>
         </div>
         <div className="chips">
-          {entities.length === 0 && <span className="muted">Aucun appareil suivi trouvé.</span>}
-          {entities.map((entity) => (
-            <button
-              type="button"
-              key={entity.entityId}
-              className={`chip ${selectedIds.includes(entity.entityId) ? 'active' : ''}`}
-              onClick={() => onToggle(entity.entityId)}
-            >
-              <span className="dot" style={{ background: colors[entity.entityId] }} />
-              {entity.name}
-              {entity.state && <span className="chip-state">{entity.state}</span>}
-            </button>
-          ))}
+          {entities.length === 0 && (
+            <span className="muted">Aucune entité géolocalisée trouvée dans Home Assistant.</span>
+          )}
+          {entities.map((entity) => {
+            const checked = selectedIds.includes(entity.entityId);
+            return (
+              <label
+                key={entity.entityId}
+                className={`chip ${checked ? 'active' : ''}`}
+                title={entity.entityId}
+              >
+                <input type="checkbox" checked={checked} onChange={() => onToggle(entity.entityId)} />
+                <span className="dot" style={{ background: colors[entity.entityId] }} />
+                {entity.name}
+                {entity.state && <span className="chip-state">{entity.state}</span>}
+              </label>
+            );
+          })}
         </div>
       </div>
 
       <div className="filter-block">
         <div className="filter-head">
-          <span>Période</span>
-          <button type="button" className="link" onClick={() => onQuick(0, true)}>
-            Aujourd'hui
-          </button>
-          <button type="button" className="link" onClick={() => onQuick(1)}>
-            24 h
-          </button>
-          <button type="button" className="link" onClick={() => onQuick(7)}>
-            7 jours
-          </button>
-          <button type="button" className="link" onClick={() => onQuick(30)}>
-            30 jours
-          </button>
+          <span>Jour</span>
         </div>
         <div className="date-row">
           <label>
-            Du
-            <input type="date" value={from} onChange={(e) => onFrom(e.target.value)} />
+            Date
+            <input type="date" value={date} onChange={(e) => onDate(e.target.value)} />
           </label>
-          <label>
-            Au
-            <input type="date" value={to} onChange={(e) => onTo(e.target.value)} />
-          </label>
+          <span className="muted">de 00:00 à 24:00</span>
         </div>
       </div>
     </div>
