@@ -65,14 +65,21 @@ router.get('/tracks', requireConfig, async (req, res) => {
 
   for (const day of days) {
     const isPast = day < today;
+    const startMs = dayStart(day).getTime();
+    const endMs = dayEnd(day).getTime();
     const missing = [];
     for (const id of entityIds) {
       if (isPast && hasDay(id, day)) {
-        const stored = readDay(id, day);
+        const stored = readDay(id, day).filter((point) => {
+          const time = point?.timestamp ? new Date(point.timestamp).getTime() : NaN;
+          return Number.isFinite(time) && time >= startMs && time <= endMs;
+        });
         if (stored.length > 0) {
           dbPoints.get(id).push(...stored);
           fromDb = true;
+          continue;
         }
+        if (!hasEmptyDay(id, day)) missing.push(id);
       } else if (isPast && hasEmptyDay(id, day)) {
         // Jour déjà vérifié et archivé sans données : inutile de réinterroger Home Assistant.
       } else if (day <= today) {

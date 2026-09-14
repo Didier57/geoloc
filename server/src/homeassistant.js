@@ -77,6 +77,9 @@ export async function fetchHistory(cfg, entityIds, startIso, endIso) {
   const tracks = [];
   if (!Array.isArray(data)) return tracks;
 
+  const startMs = startIso ? new Date(startIso).getTime() : null;
+  const endMs = endIso ? new Date(endIso).getTime() : null;
+
   for (const series of data) {
     if (!Array.isArray(series) || series.length === 0) continue;
     const first = series[0];
@@ -85,13 +88,19 @@ export async function fetchHistory(cfg, entityIds, startIso, endIso) {
       const latitude = toNumber(st.attributes?.latitude);
       const longitude = toNumber(st.attributes?.longitude);
       if (latitude === null || longitude === null) continue;
+      const timestamp = st.last_changed || st.last_updated || null;
+      if (timestamp) {
+        const time = new Date(timestamp).getTime();
+        if (startMs != null && time < startMs) continue;
+        if (endMs != null && time > endMs) continue;
+      }
       points.push({
         latitude,
         longitude,
         accuracy: toNumber(st.attributes?.gps_accuracy),
         battery: toNumber(st.attributes?.battery_level),
         state: st.state,
-        timestamp: st.last_changed || st.last_updated || null,
+        timestamp,
       });
     }
     tracks.push({
