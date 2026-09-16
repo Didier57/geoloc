@@ -614,6 +614,22 @@ select:focus {
   font-size: 13px;
 }
 
+.import-steps {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.import-dates {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 @media (max-width: 720px) {
   .user-form {
     grid-template-columns: 1fr;

@@ -7,6 +7,7 @@ import MapView from './MapView.jsx';
 import Settings from './Settings.jsx';
 import Users from './Users.jsx';
 import Backup from './Backup.jsx';
+import GoogleImport from './GoogleImport.jsx';
 
 const PALETTE = [
   '#e6194b',
@@ -52,6 +53,7 @@ export default function Dashboard({ user, onLogout }) {
   const [showSettings, setShowSettings] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
   const [showBackup, setShowBackup] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const autoSyncDone = useRef(false);
 
   const loadConfig = useCallback(async () => {
@@ -231,6 +233,11 @@ export default function Dashboard({ user, onLogout }) {
             Sauvegarde
           </button>
         )}
+        {isAdmin && (
+          <button className="btn ghost" onClick={() => setShowImport(true)}>
+            Import Google
+          </button>
+        )}
         <button className="btn ghost" onClick={onLogout}>
           Déconnexion
         </button>
@@ -307,6 +314,16 @@ export default function Dashboard({ user, onLogout }) {
           onClose={() => setShowBackup(false)}
           onImported={() => {
             loadConfig();
+            loadEntities();
+            loadTracks();
+          }}
+        />
+      )}
+      {showImport && (
+        <GoogleImport
+          currentEntityId={selectedIds[0]}
+          onClose={() => setShowImport(false)}
+          onImported={() => {
             loadEntities();
             loadTracks();
           }}

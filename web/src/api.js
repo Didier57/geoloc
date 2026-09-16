@@ -1,9 +1,4 @@
-async function request(path, options = {}) {
-  const res = await fetch(path, {
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-    ...options,
-  });
+async function parseResponse(res) {
   const text = await res.text();
   let data = {};
   if (text) {
@@ -20,6 +15,15 @@ async function request(path, options = {}) {
     throw error;
   }
   return data;
+}
+
+async function request(path, options = {}) {
+  const res = await fetch(path, {
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+    ...options,
+  });
+  return parseResponse(res);
 }
 
 export const api = {
@@ -52,6 +56,19 @@ export const api = {
     const params = new URLSearchParams({ entities: entityIds.join(','), from });
     if (to) params.set('to', to);
     return request(`/api/geoloc/tracks?${params.toString()}`);
+  },
+
+  importGoogle: async (entityId, file, from, to) => {
+    const params = new URLSearchParams({ entityId });
+    if (from) params.set('from', from);
+    if (to) params.set('to', to);
+    const res = await fetch(`/api/geoloc/import?${params.toString()}`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': file.type || 'application/octet-stream' },
+      body: file,
+    });
+    return parseResponse(res);
   },
 
   backup: (includeConfig, includeToken) =>
