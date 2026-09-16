@@ -154,6 +154,14 @@ export default function GoogleImport({ currentEntityId, onClose, onImported }) {
   );
 }
 
+function formatSize(bytes) {
+  if (!bytes) return '';
+  if (bytes < 1024) return `${bytes} o`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} Ko`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} Go`;
+}
+
 function ImportReport({ report }) {
   const nothingFound = report.pointsBeforeRange === 0;
   const outsideRange = !nothingFound && report.points === 0;
@@ -172,6 +180,13 @@ function ImportReport({ report }) {
         </div>
       )}
 
+      {!outsideRange && report.points > 0 && report.added === 0 && report.duplicates === report.points && (
+        <div className="muted">
+          Ces {report.points} position(s) étaient déjà enregistrées : rien de nouveau à importer pour cette
+          période.
+        </div>
+      )}
+
       {nothingFound && (
         <div className="error">
           {report.isZip
@@ -187,11 +202,28 @@ function ImportReport({ report }) {
 
       {report.archiveError && <div className="error">Archive illisible : {report.archiveError}</div>}
 
+      {report.truncated && (
+        <div className="error">
+          Fichier très volumineux : l'analyse s'est arrêtée avant la fin, une partie des positions n'a pas
+          été lue. Importez le fichier JSON correspondant à une période plus courte (filtre de dates ci-dessus).
+        </div>
+      )}
+
+      {report.timelineEdits && !nothingFound && (
+        <div className="error">
+          « Timeline Edits » ne contient que les corrections que vous avez apportées à la Timeline, pas tout
+          votre historique. L'historique complet se trouve dans <strong>Timeline.json</strong> (export depuis
+          l'application Google Maps sur le téléphone) ou dans <strong>Records.json</strong> /{' '}
+          <strong>Semantic Location History</strong> (export Takeout).
+        </div>
+      )}
+
       {report.files.length > 0 && (
         <ul className="import-list">
           {report.files.slice(0, 20).map((entry, index) => (
             <li key={`${entry.name}-${index}`}>
               <span className="file-name">{entry.name}</span> — {entry.points} position(s)
+              {entry.from ? ` (du ${entry.from} au ${entry.to})` : ''}
             </li>
           ))}
           {report.files.length > 20 && <li className="muted">… et {report.files.length - 20} autre(s)</li>}
@@ -219,6 +251,7 @@ function ImportReport({ report }) {
             {report.entries.slice(0, 30).map((entry, index) => (
               <li key={`${entry.name}-${index}`}>
                 <span className="file-name">{entry.name}</span>
+                {entry.size ? ` — ${formatSize(entry.size)}` : ''}
               </li>
             ))}
             {report.entries.length > 30 && <li>… et {report.entries.length - 30} autre(s)</li>}

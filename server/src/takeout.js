@@ -6,8 +6,19 @@ import { toDayString } from './dates.js';
 const MAX_JSON_ENTRY_BYTES = 400 * 1024 * 1024;
 const MAX_LISTED_ENTRIES = 200;
 const MAX_SKIPPED_ENTRIES = 50;
-const MAX_SCAN_NODES = 400000;
-const MAX_SCAN_DEPTH = 16;
+const MAX_SCAN_NODES = 5000000;
+const MAX_SCAN_DEPTH = 20;
+
+const SKIP_KEYS = new Set([
+  'wifiScan',
+  'beaconScan',
+  'bluetoothScan',
+  'cellTowerScan',
+  'detectedActivities',
+  'activityRecord',
+  'rawRssi',
+  'passpoint',
+]);
 
 const COORD_PAIRS = [
   ['latitudeE7', 'longitudeE7'],
@@ -308,6 +319,8 @@ function timeFromNode(node) {
 }
 
 function accuracyFromNode(node) {
+  const millimeters = numberOrNull(node.accuracyMm);
+  if (millimeters !== null && millimeters > 0) return Math.round(millimeters / 1000);
   for (const key of ACCURACY_KEYS) {
     const value = numberOrNull(node[key]);
     if (value !== null && value > 0) return Math.round(value);
@@ -315,18 +328,34 @@ function accuracyFromNode(node) {
   return null;
 }
 
+function nestedTimeFromNode(node) {
+  for (const key of ['duration', 'timeInterval', 'timeRange']) {
+    const value = node[key];
+    if (value && typeof value === 'object') {
+      const iso = timeFromNode(value);
+      if (iso) return iso;
+    }
+  }
+  return null;
+}
+
 function scanNode(node, state, depth, inheritedTime) {
-  if (state.nodes > MAX_SCAN_NODES || depth > MAX_SCAN_DEPTH) return;
   if (node === null || typeof node !== 'object') return;
+  if (depth > MAX_SCAN_DEPTH) return;
+  if (state.nodes > MAX_SCAN_NODES) {
+    state.truncated = true;
+    return;
+  }
   if (Array.isArray(node)) {
     for (const item of node) scanNode(item, state, depth + 1, inheritedTime);
     return;
   }
   state.nodes += 1;
-  const time = timeFromNode(node) || inheritedTime;
+  const time = timeFromNode(node) || nestedTimeFromNode(node) || inheritedTime;
   const coords = coordsFromNode(node);
   if (coords && time) emitPoint(state, coords.latitude, coords.longitude, time, accuracyFromNode(node));
   for (const key in node) {
+    if (SKIP_KEYS.has(key)) continue;
     const value = node[key];
     if (value && typeof value === 'object') scanNode(value, state, depth + 1, time);
   }
@@ -346,7 +375,7 @@ function pointKey(point) {
 }
 
 export function pointsFromDocument(document) {
-  const state = { points: [], seen: new Set(), nodes: 0 };
+  const state = { points: [], seen: new Set(), nodes: 0, truncated: false };
 
   if (Array.isArray(document)) extractLocations(document, state.points);
   else if (document && typeof document === 'object') {
@@ -368,7 +397,7 @@ export function pointsFromDocument(document) {
   scanNode(document, state, 0, null);
 
   state.points.sort((a, b) => (a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0));
-  return state.points;
+  return { points: state.points, truncated: state.truncated };
 }
 
 export function readDocuments(buffer) {
@@ -400,6 +429,8 @@ export function importTakeout({ entityId, buffer, from, to }) {
     duplicates: 0,
     detectedFrom: null,
     detectedTo: null,
+    truncated: false,
+    timelineEdits: false,
     range: { from: from || null, to: to || null },
   };
 
@@ -412,16 +443,24 @@ export function importTakeout({ entityId, buffer, from, to }) {
       if (stats.skipped.length < MAX_SKIPPED_ENTRIES) stats.skipped.push({ name: doc.name, reason: 'invalid_json' });
       continue;
     }
-    const points = pointsFromDocument(parsed);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && Array.isArray(parsed.timelineEdits)) {
+      stats.timelineEdits = true;
+    }
+    const scan = pointsFromDocument(parsed);
+    const points = scan.points;
+    if (scan.truncated) stats.truncated = true;
     if (points.length === 0) {
       if (stats.skipped.length < MAX_SKIPPED_ENTRIES) stats.skipped.push({ name: doc.name, reason: 'no_points' });
       continue;
     }
     stats.documents += 1;
-    if (stats.files.length < MAX_LISTED_ENTRIES) stats.files.push({ name: doc.name, points: points.length });
+    let fileFrom = null;
+    let fileTo = null;
     for (const point of points) {
       const day = toDayString(new Date(point.timestamp));
       if (!day) continue;
+      if (!fileFrom || day < fileFrom) fileFrom = day;
+      if (!fileTo || day > fileTo) fileTo = day;
       stats.pointsBeforeRange += 1;
       if (!stats.detectedFrom || day < stats.detectedFrom) stats.detectedFrom = day;
       if (!stats.detectedTo || day > stats.detectedTo) stats.detectedTo = day;
@@ -430,6 +469,9 @@ export function importTakeout({ entityId, buffer, from, to }) {
       stats.points += 1;
       if (!byDay.has(day)) byDay.set(day, []);
       byDay.get(day).push(point);
+    }
+    if (stats.files.length < MAX_LISTED_ENTRIES) {
+      stats.files.push({ name: doc.name, points: points.length, from: fileFrom, to: fileTo });
     }
   }
 

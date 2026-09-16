@@ -24,8 +24,9 @@ des entités de suivi de position de **Home Assistant** (toute entité exposant 
   dans le navigateur (suit le thème du système par défaut).
 - **Sauvegarde / restauration** (admin) : export d'un fichier JSON avec tous les trajets archivés et
   la configuration Home Assistant, réimportable sans créer de doublons.
-- **Import d'un historique Google** (admin) : déposez un export **Google Takeout** (ZIP ou JSON) et
-  rattachez les trajets à un device existant, sans doublon.
+- **Import d'un historique Google** (admin) : déposez un export **Google Takeout** ou `Timeline.json`
+  (ZIP ou JSON) et rattachez les trajets à un device existant, sans doublon. L'analyse est tolérante
+  (formats anciens et récents) et affiche un rapport détaillé du contenu de l'archive.
 
 ## Architecture
 
@@ -125,10 +126,24 @@ existant : les points déjà présents (**même horodatage**) sont ignorés, auc
 trajets importés sont ensuite affichés comme ceux venant de Home Assistant (analyse marche/voiture
 recalculée à l'affichage).
 
+La lecture est volontairement très tolérante : les coordonnées sont cherchées sous toutes leurs formes
+courantes (`latitude`/`longitude`, `latitudeE7`, chaînes `"49.47°, 6.23°"`, préfixe `geo:`, nombres
+stockés en texte…) et un point est retenu dès qu'un élément associe des coordonnées à un horodatage ou
+à une période (`duration`, `timeInterval`, `timeRange`). Les sous-arbres inutiles mais très volumineux
+(scans Wi-Fi, Bluetooth, antennes, activités détectées) sont ignorés pour ne pas saturer l'analyse.
+
 Après l'import, un **rapport détaillé** s'affiche : nombre de fichiers de l'archive, fichiers
-exploités avec leur nombre de positions, fichiers ignorés et raison, et plage de dates détectée. Si
-aucune position n'est reconnue, la liste du contenu de l'archive permet de vérifier que le bon ZIP a
-été déposé.
+exploités avec leur nombre de positions et leur plage de dates, fichiers ignorés et raison, et plage
+de dates détectée. Si aucune position n'est reconnue, la liste du contenu de l'archive (avec la taille
+de chaque fichier) permet de vérifier que le bon ZIP a été déposé ; si toutes les positions étaient
+déjà enregistrées, le rapport le signale ; si l'analyse a été interrompue par la taille du fichier, un
+avertissement le précise.
+
+> **À propos de `Timeline Edits.json`** : ce fichier ne contient que les **corrections** que vous avez
+> apportées à votre Timeline dans Google Maps, pas votre historique complet. Pour récupérer des trajets,
+> utilisez plutôt `Records.json`, `Semantic Location History/<année>/<MOIS>.json` (ouverts depuis
+> Takeout) ou `Timeline.json` (export généré depuis l'application Google Maps, « Exporter la
+> Timeline »). Le rapport indique automatiquement quand un fichier `Timeline Edits` est détecté.
 
 Limites : fichier limité à **500 Mo** côté serveur (et 600 Mo via nginx) ; un fichier JSON
 décompressé de plus de 400 Mo est ignoré. Pour de très gros historiques, exportez une **plage de
