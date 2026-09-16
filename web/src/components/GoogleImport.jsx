@@ -209,12 +209,18 @@ function ImportReport({ report }) {
         </div>
       )}
 
-      {report.timelineEdits && !nothingFound && (
-        <div className="error">
-          « Timeline Edits » ne contient que les corrections que vous avez apportées à la Timeline, pas tout
-          votre historique. L'historique complet se trouve dans <strong>Timeline.json</strong> (export depuis
-          l'application Google Maps sur le téléphone) ou dans <strong>Records.json</strong> /{' '}
-          <strong>Semantic Location History</strong> (export Takeout).
+      {report.timelineEdits && (
+        <div className="muted">
+          Fichier <strong>Timeline Edits</strong> reconnu : les positions qu'il contient ont été importées
+          {report.detectedFrom ? ` (du ${report.detectedFrom} au ${report.detectedTo})` : ''}.
+          {!report.fullHistory && (
+            <>
+              {' '}
+              Google n'y place qu'une partie de l'historique. Pour récupérer tout votre historique, exportez la
+              Timeline depuis l'application <strong>Google Maps</strong> sur le téléphone, puis importez le
+              fichier <strong>Timeline.json</strong> obtenu.
+            </>
+          )}
         </div>
       )}
 
@@ -244,7 +250,7 @@ function ImportReport({ report }) {
         </>
       )}
 
-      {nothingFound && report.entries.length > 0 && (
+      {report.isZip && report.entries.length > 0 && (
         <>
           <div className="muted">Contenu de l'archive :</div>
           <ul className="import-list muted">
@@ -256,11 +262,13 @@ function ImportReport({ report }) {
             ))}
             {report.entries.length > 30 && <li>… et {report.entries.length - 30} autre(s)</li>}
           </ul>
-          <div className="muted">
-            Vérifiez que l'archive contient bien le dossier « Historique des positions » (Location History) :
-            Google Takeout découpe parfois l'export en plusieurs fichiers ZIP, et seul celui qui contient ce
-            dossier inclut les trajets.
-          </div>
+          {nothingFound && (
+            <div className="muted">
+              Vérifiez que l'archive contient bien le dossier « Historique des positions » (Location History) :
+              Google Takeout découpe parfois l'export en plusieurs fichiers ZIP, et seul celui qui contient ce
+              dossier inclut les trajets.
+            </div>
+          )}
         </>
       )}
 

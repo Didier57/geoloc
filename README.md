@@ -133,17 +133,19 @@ stockés en texte…) et un point est retenu dès qu'un élément associe des co
 (scans Wi-Fi, Bluetooth, antennes, activités détectées) sont ignorés pour ne pas saturer l'analyse.
 
 Après l'import, un **rapport détaillé** s'affiche : nombre de fichiers de l'archive, fichiers
-exploités avec leur nombre de positions et leur plage de dates, fichiers ignorés et raison, et plage
-de dates détectée. Si aucune position n'est reconnue, la liste du contenu de l'archive (avec la taille
-de chaque fichier) permet de vérifier que le bon ZIP a été déposé ; si toutes les positions étaient
-déjà enregistrées, le rapport le signale ; si l'analyse a été interrompue par la taille du fichier, un
-avertissement le précise.
+exploités avec leur nombre de positions et leur plage de dates, fichiers ignorés et raison, plage
+de dates détectée et contenu de l'archive (avec la taille de chaque fichier). Si aucune position n'est
+reconnue, un message le signale et invite à vérifier que le bon ZIP a été déposé ; si toutes les positions
+étaient déjà enregistrées, le rapport le signale ; si l'analyse a été interrompue par la taille du fichier,
+un avertissement le précise.
 
-> **À propos de `Timeline Edits.json`** : ce fichier ne contient que les **corrections** que vous avez
-> apportées à votre Timeline dans Google Maps, pas votre historique complet. Pour récupérer des trajets,
-> utilisez plutôt `Records.json`, `Semantic Location History/<année>/<MOIS>.json` (ouverts depuis
-> Takeout) ou `Timeline.json` (export généré depuis l'application Google Maps, « Exporter la
-> Timeline »). Le rapport indique automatiquement quand un fichier `Timeline Edits` est détecté.
+> **À propos de `Timeline Edits.json`** : les positions qu'il contient **sont importées** (le rapport
+> indique la plage de dates détectée), mais Google n'y place qu'une **partie** de votre historique
+> (uniquement les modifications conservées côté serveur — d'où les archives ne contenant que
+> `Settings.json`, `Timeline Edits.json` et `Encrypted Backups.txt`). Pour récupérer tout l'historique,
+> utilisez `Records.json`, `Semantic Location History/<année>/<MOIS>.json` (ouverts depuis Takeout) ou
+> `Timeline.json` (export généré depuis l'application Google Maps, « Exporter la Timeline »). Le rapport
+> prévient automatiquement quand seule une source partielle a été trouvée.
 
 Limites : fichier limité à **500 Mo** côté serveur (et 600 Mo via nginx) ; un fichier JSON
 décompressé de plus de 400 Mo est ignoré. Pour de très gros historiques, exportez une **plage de

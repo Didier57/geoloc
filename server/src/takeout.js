@@ -431,6 +431,7 @@ export function importTakeout({ entityId, buffer, from, to }) {
     detectedTo: null,
     truncated: false,
     timelineEdits: false,
+    fullHistory: false,
     range: { from: from || null, to: to || null },
   };
 
@@ -443,8 +444,16 @@ export function importTakeout({ entityId, buffer, from, to }) {
       if (stats.skipped.length < MAX_SKIPPED_ENTRIES) stats.skipped.push({ name: doc.name, reason: 'invalid_json' });
       continue;
     }
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && Array.isArray(parsed.timelineEdits)) {
-      stats.timelineEdits = true;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      if (Array.isArray(parsed.timelineEdits)) stats.timelineEdits = true;
+      if (
+        Array.isArray(parsed.locations) ||
+        Array.isArray(parsed.timelineObjects) ||
+        Array.isArray(parsed.semanticSegments) ||
+        Array.isArray(parsed.rawSignals)
+      ) {
+        stats.fullHistory = true;
+      }
     }
     const scan = pointsFromDocument(parsed);
     const points = scan.points;
