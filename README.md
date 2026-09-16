@@ -119,10 +119,16 @@ exemple le même appareil suivi par les deux systèmes).
 
 Le serveur lit l'archive (aucun envoi vers Google), reconnaît les formats
 `Records.json` / `Semantic Location History` / `Timeline.json` (`semanticSegments`, `rawSignals`),
-répartit les points par jour selon `APP_TZ`, puis les fusionne avec l'historique existant : les
-points déjà présents (**même horodatage**) sont ignorés, aucun doublon n'est créé. Les trajets
-importés sont ensuite affichés comme ceux venant de Home Assistant (analyse marche/voiture
+et, pour les variantes inconnues, recherche automatiquement les couples coordonnées + horodatage dans
+le fichier. Il répartit les points par jour selon `APP_TZ`, puis les fusionne avec l'historique
+existant : les points déjà présents (**même horodatage**) sont ignorés, aucun doublon n'est créé. Les
+trajets importés sont ensuite affichés comme ceux venant de Home Assistant (analyse marche/voiture
 recalculée à l'affichage).
+
+Après l'import, un **rapport détaillé** s'affiche : nombre de fichiers de l'archive, fichiers
+exploités avec leur nombre de positions, fichiers ignorés et raison, et plage de dates détectée. Si
+aucune position n'est reconnue, la liste du contenu de l'archive permet de vérifier que le bon ZIP a
+été déposé.
 
 Limites : fichier limité à **500 Mo** côté serveur (et 600 Mo via nginx) ; un fichier JSON
 décompressé de plus de 400 Mo est ignoré. Pour de très gros historiques, exportez une **plage de
