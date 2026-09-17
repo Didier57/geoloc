@@ -3,7 +3,13 @@ import { dirname } from 'node:path';
 import { config } from './config.js';
 import { hashPassword } from './utils/password.js';
 
-const emptyState = () => ({ users: [], nextUserId: 1, ha: null, emptyDays: {} });
+const emptyState = () => ({
+  users: [],
+  nextUserId: 1,
+  ha: null,
+  emptyDays: {},
+  deletedPoints: {},
+});
 
 let state = emptyState();
 
@@ -128,6 +134,23 @@ export function clearEmptyDay(entityId, day) {
   const list = state.emptyDays?.[key];
   if (!Array.isArray(list) || !list.includes(day)) return;
   state.emptyDays[key] = list.filter((value) => value !== day);
+  save();
+}
+
+export function deletedPointsFor(entityId) {
+  const list = state.deletedPoints?.[String(entityId)];
+  return Array.isArray(list) ? list : [];
+}
+
+export function markPointDeleted(entityId, timestamp) {
+  const key = String(entityId);
+  const value = String(timestamp);
+  if (!state.deletedPoints) state.deletedPoints = {};
+  const list = Array.isArray(state.deletedPoints[key]) ? state.deletedPoints[key] : [];
+  if (list.includes(value)) return;
+  list.push(value);
+  list.sort();
+  state.deletedPoints[key] = list;
   save();
 }
 

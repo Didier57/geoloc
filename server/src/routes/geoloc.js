@@ -1,12 +1,19 @@
 import { Router } from 'express';
-import { requireAuth } from '../auth.js';
-import { getHaConfig, markEmptyDay, hasEmptyDay, clearEmptyDay } from '../store.js';
+import { requireAdmin, requireAuth } from '../auth.js';
+import {
+  clearEmptyDay,
+  deletedPointsFor,
+  getHaConfig,
+  hasEmptyDay,
+  markEmptyDay,
+  markPointDeleted,
+} from '../store.js';
 import { decryptSecret } from '../utils/crypto.js';
 import { fetchHistory, fetchStates, mapTrackableEntities } from '../homeassistant.js';
 import { reverseGeocode } from '../geocode.js';
 import { nearbyPlaces } from '../places.js';
-import { hasDay, readDay, saveDay } from '../history.js';
-import { dayStart, dayEnd, listDays, todayString } from '../dates.js';
+import { deletePoint, hasDay, readDay, saveDay } from '../history.js';
+import { dayEnd, dayStart, listDays, todayString, toDayString } from '../dates.js';
 import { runArchive } from '../archive.js';
 import { classifyTrack } from '../motion.js';
 
@@ -115,8 +122,11 @@ router.get('/tracks', requireConfig, async (req, res) => {
 
   const tracks = entityIds.map((id) => {
     const merged = new Map();
+    const deleted = new Set(deletedPointsFor(id));
     for (const point of [...dbPoints.get(id), ...haPoints.get(id)]) {
-      if (point?.timestamp) merged.set(point.timestamp, point);
+      if (!point?.timestamp) continue;
+      if (deleted.has(String(point.timestamp))) continue;
+      merged.set(point.timestamp, point);
     }
     const sorted = [...merged.values()].sort(
       (a, b) => new Date(a.timestamp) - new Date(b.timestamp),
@@ -137,6 +147,24 @@ router.get('/tracks', requireConfig, async (req, res) => {
 router.post('/archive', requireConfig, async (req, res) => {
   const result = await runArchive({ force: req.body?.force === true });
   res.json({ ok: true, ...result });
+});
+
+router.delete('/point', requireAdmin, (req, res) => {
+  const entityId = String(req.query.entityId || '').trim();
+  const timestamp = String(req.query.timestamp || '').trim();
+  if (!entityId || !timestamp) {
+    return res
+      .status(400)
+      .json({ error: 'missing_params', message: "L'entité et l'horodatage sont requis." });
+  }
+  const time = new Date(timestamp).getTime();
+  if (!Number.isFinite(time)) {
+    return res.status(400).json({ error: 'invalid_timestamp', message: 'Horodatage invalide.' });
+  }
+  const day = toDayString(new Date(time));
+  const removed = deletePoint(entityId, day, timestamp);
+  markPointDeleted(entityId, timestamp);
+  res.json({ ok: true, entityId, timestamp, day, removed });
 });
 
 router.get('/reverse', async (req, res) => {

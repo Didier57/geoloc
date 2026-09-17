@@ -46,6 +46,19 @@ export function saveDay(entityId, day, points) {
   return list.length;
 }
 
+export function deletePoint(entityId, day, timestamp) {
+  const existing = readDay(entityId, day);
+  if (existing.length === 0) return 0;
+  const value = String(timestamp);
+  const kept = existing.filter((point) => String(point?.timestamp) !== value);
+  if (kept.length === existing.length) return 0;
+  const file = dayFile(entityId, day);
+  const tmp = `${file}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(kept));
+  fs.renameSync(tmp, file);
+  return existing.length - kept.length;
+}
+
 export function listArchives() {
   let entries = [];
   try {

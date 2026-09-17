@@ -194,6 +194,16 @@ select:focus {
   background: var(--surface-2);
 }
 
+.btn.danger {
+  background: var(--danger);
+  color: #fff;
+}
+
+.btn.danger:hover {
+  background: var(--danger);
+  filter: brightness(0.9);
+}
+
 .theme-toggle {
   display: inline-flex;
   align-items: center;
@@ -574,6 +584,14 @@ select:focus {
 
 .leaflet-popup-content {
   color: var(--popup-fg);
+}
+
+.leaflet-popup-content .popup-delete {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 5px 10px;
+  font-size: 12px;
 }
 
 .backup-section {

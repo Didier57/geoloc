@@ -279,6 +279,9 @@ export default function Dashboard({ user, onLogout }) {
               selectedIds={selectedIds}
               colors={colors}
               showLive={date === toDateInput(new Date())}
+              isAdmin={isAdmin}
+              onPointDeleted={loadTracks}
+              onError={setError}
             />
             <div className="legend">
               {MODE_ORDER.map((mode) => (

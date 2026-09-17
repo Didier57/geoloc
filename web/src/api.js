@@ -57,6 +57,10 @@ export const api = {
     if (to) params.set('to', to);
     return request(`/api/geoloc/tracks?${params.toString()}`);
   },
+  deletePoint: (entityId, timestamp) => {
+    const params = new URLSearchParams({ entityId, timestamp });
+    return request(`/api/geoloc/point?${params.toString()}`, { method: 'DELETE' });
+  },
 
   importGoogle: async (entityId, file, from, to) => {
     const params = new URLSearchParams({ entityId });

@@ -27,6 +27,9 @@ des entités de suivi de position de **Home Assistant** (toute entité exposant 
 - **Import d'un historique Google** (admin) : déposez un export **Google Takeout** ou `Timeline.json`
   (ZIP ou JSON) et rattachez les trajets à un device existant, sans doublon. L'analyse est tolérante
   (formats anciens et récents) et affiche un rapport détaillé du contenu de l'archive.
+- **Suppression d'une position** (admin) : cliquez sur un point du tracé puis sur « Supprimer cette
+  position » pour retirer un point erroné. Il est effacé de l'archive et définitivement masqué, même
+  si Home Assistant le renvoie encore.
 
 ## Architecture
 

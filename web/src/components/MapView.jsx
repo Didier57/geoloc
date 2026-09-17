@@ -173,7 +173,16 @@ export function stayIcon() {
   });
 }
 
-export default function MapView({ tracks, entities, selectedIds, colors, showLive = true }) {
+export default function MapView({
+  tracks,
+  entities,
+  selectedIds,
+  colors,
+  showLive = true,
+  isAdmin = false,
+  onPointDeleted,
+  onError,
+}) {
   const selected = new Set(selectedIds || []);
   const visibleEntities = showLive
     ? entities.filter((entity) => entity.latitude != null && selected.has(entity.entityId))
@@ -247,6 +256,25 @@ export default function MapView({ tracks, entities, selectedIds, colors, showLiv
       });
   }, []);
 
+  const [removing, setRemoving] = useState(null);
+
+  const removePoint = useCallback(
+    async (key, entityId, timestamp) => {
+      if (!timestamp) return;
+      if (!window.confirm('Supprimer définitivement cette position ?')) return;
+      setRemoving(key);
+      try {
+        await api.deletePoint(entityId, timestamp);
+        onPointDeleted?.();
+      } catch (err) {
+        onError?.(err.message);
+      } finally {
+        setRemoving(null);
+      }
+    },
+    [onPointDeleted, onError],
+  );
+
   return (
     <MapContainer center={[46.6, 2.5]} zoom={6} style={{ height: '100%', width: '100%' }}>
       <TileLayer
@@ -314,6 +342,16 @@ export default function MapView({ tracks, entities, selectedIds, colors, showLiv
                 ) : null}
                 <br />
                 <span className="popup-address">{addresses[key] || 'Cliquez pour voir l’adresse'}</span>
+                {isAdmin && point.timestamp ? (
+                  <button
+                    type="button"
+                    className="btn danger popup-delete"
+                    onClick={() => removePoint(key, track.entityId, point.timestamp)}
+                    disabled={removing === key}
+                  >
+                    {removing === key ? 'Suppression…' : 'Supprimer cette position'}
+                  </button>
+                ) : null}
               </Popup>
             </CircleMarker>
           );
