@@ -154,7 +154,7 @@ function mergeNearbyPoints(points, radiusKm = POINT_MERGE_RADIUS_M / 1000) {
       continue;
     }
 
-    const cluster = { latitude: point.latitude, longitude: point.longitude, index, count: 1, last: point };
+    const cluster = { point, latitude: point.latitude, longitude: point.longitude, index, count: 1, last: point };
     merged.push(cluster);
     const key = cellKey(gx, gy);
     if (!cells.has(key)) cells.set(key, []);
