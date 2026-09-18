@@ -15,7 +15,8 @@ import { api } from '../api.js';
 import { bearingDegrees, detectStays, haversineKm, MODE_LABELS, modeColor } from '../motion.js';
 
 const MAX_POINT_MARKERS = 500;
-const POINT_MERGE_RADIUS_M = 150;
+const POINT_MERGE_RADIUS_M = 200;
+const SPIKE_RADIUS_M = 200;
 const MAX_ARROWS = 40;
 const ARROW_STEP_KM = 0.3;
 const STAY_COLOR = '#7c3aed';
@@ -98,22 +99,66 @@ function formatDuration(ms) {
   return `${rest} min`;
 }
 
+function cleanTrack(points, radiusKm = SPIKE_RADIUS_M / 1000) {
+  if (!Array.isArray(points) || points.length < 3) return points || [];
+  const kept = [points[0]];
+  for (let i = 1; i < points.length - 1; i += 1) {
+    const previous = kept[kept.length - 1];
+    const point = points[i];
+    const next = points[i + 1];
+    const leaves =
+      haversineKm(previous.latitude, previous.longitude, point.latitude, point.longitude) > radiusKm;
+    const returns =
+      haversineKm(point.latitude, point.longitude, next.latitude, next.longitude) > radiusKm &&
+      haversineKm(previous.latitude, previous.longitude, next.latitude, next.longitude) < radiusKm;
+    if (leaves && returns) continue;
+    kept.push(point);
+  }
+  kept.push(points[points.length - 1]);
+  return kept;
+}
+
 function mergeNearbyPoints(points, radiusKm = POINT_MERGE_RADIUS_M / 1000) {
   const merged = [];
-  let anchor = null;
+  const latCell = radiusKm / 111.32;
+  const cells = new Map();
+  const cellKey = (gx, gy) => `${gx}:${gy}`;
+
   for (let index = 0; index < points.length; index += 1) {
     const point = points[index];
     if (point?.latitude == null || point?.longitude == null) continue;
-    const distance = anchor
-      ? haversineKm(anchor.point.latitude, anchor.point.longitude, point.latitude, point.longitude)
-      : Infinity;
-    if (anchor && distance <= radiusKm) {
-      anchor.count += 1;
-      anchor.last = point;
+    const lngCell = latCell / Math.max(Math.cos((point.latitude * Math.PI) / 180), 0.01);
+    const gx = Math.floor(point.longitude / lngCell);
+    const gy = Math.floor(point.latitude / latCell);
+
+    let match = null;
+    for (let dx = -1; dx <= 1 && !match; dx += 1) {
+      for (let dy = -1; dy <= 1 && !match; dy += 1) {
+        const bucket = cells.get(cellKey(gx + dx, gy + dy));
+        if (!bucket) continue;
+        for (const cluster of bucket) {
+          if (
+            haversineKm(cluster.latitude, cluster.longitude, point.latitude, point.longitude) <=
+            radiusKm
+          ) {
+            match = cluster;
+            break;
+          }
+        }
+      }
+    }
+
+    if (match) {
+      match.count += 1;
+      match.last = point;
       continue;
     }
-    anchor = { point, index, count: 1, last: point };
-    merged.push(anchor);
+
+    const cluster = { latitude: point.latitude, longitude: point.longitude, index, count: 1, last: point };
+    merged.push(cluster);
+    const key = cellKey(gx, gy);
+    if (!cells.has(key)) cells.set(key, []);
+    cells.get(key).push(cluster);
   }
   return merged;
 }
@@ -216,9 +261,14 @@ export default function MapView({
   const [places, setPlaces] = useState({});
   const placesRequested = useRef(new Set());
 
+  const displayTracks = useMemo(
+    () => tracks.map((track) => ({ ...track, points: cleanTrack(track.points) })),
+    [tracks],
+  );
+
   const stays = useMemo(
     () =>
-      tracks.flatMap((track) =>
+      displayTracks.flatMap((track) =>
         detectStays(track.points).map((stay, index) => ({
           ...stay,
           key: `${track.entityId}-stay-${index}-${stay.latitude}-${stay.longitude}`,
@@ -226,7 +276,7 @@ export default function MapView({
           name: names[track.entityId] || track.name || track.entityId,
         })),
       ),
-    [tracks, entities],
+    [displayTracks, entities],
   );
 
   useEffect(() => {
@@ -301,7 +351,7 @@ export default function MapView({
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
 
-      {tracks.map((track) => {
+      {displayTracks.map((track) => {
         const fallbackColor = colors[track.entityId] || '#2563eb';
         return buildRuns(track.points, fallbackColor).map((run, index) => (
           <Polyline
@@ -312,7 +362,7 @@ export default function MapView({
         ));
       })}
 
-      {tracks.map((track) => {
+      {displayTracks.map((track) => {
         const fallbackColor = colors[track.entityId] || '#2563eb';
         return arrowSamples(track.points).map((index) => {
           const previous = track.points[index - 1];
@@ -334,7 +384,7 @@ export default function MapView({
         });
       })}
 
-      {tracks.map((track) => {
+      {displayTracks.map((track) => {
         const fallbackColor = colors[track.entityId] || '#2563eb';
         return capPoints(mergeNearbyPoints(track.points)).map(({ point, index, count, last }) => {
           const key = `${track.entityId}-${index}-${point.latitude}-${point.longitude}`;
@@ -439,7 +489,7 @@ export default function MapView({
         </CircleMarker>
       ))}
 
-      <FitBounds tracks={tracks} entities={visibleEntities} />
+      <FitBounds tracks={displayTracks} entities={visibleEntities} />
     </MapContainer>
   );
 }
