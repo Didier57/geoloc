@@ -15,6 +15,7 @@ import { api } from '../api.js';
 import { bearingDegrees, detectStays, haversineKm, MODE_LABELS, modeColor } from '../motion.js';
 
 const MAX_POINT_MARKERS = 500;
+const POINT_MERGE_RADIUS_M = 150;
 const MAX_ARROWS = 40;
 const ARROW_STEP_KM = 0.3;
 const STAY_COLOR = '#7c3aed';
@@ -97,18 +98,36 @@ function formatDuration(ms) {
   return `${rest} min`;
 }
 
-function samplePoints(points) {
-  if (points.length <= MAX_POINT_MARKERS) {
-    return points.map((point, index) => ({ point, index }));
+function mergeNearbyPoints(points, radiusKm = POINT_MERGE_RADIUS_M / 1000) {
+  const merged = [];
+  let anchor = null;
+  for (let index = 0; index < points.length; index += 1) {
+    const point = points[index];
+    if (point?.latitude == null || point?.longitude == null) continue;
+    const distance = anchor
+      ? haversineKm(anchor.point.latitude, anchor.point.longitude, point.latitude, point.longitude)
+      : Infinity;
+    if (anchor && distance <= radiusKm) {
+      anchor.count += 1;
+      anchor.last = point;
+      continue;
+    }
+    anchor = { point, index, count: 1, last: point };
+    merged.push(anchor);
   }
-  const step = Math.ceil(points.length / MAX_POINT_MARKERS);
+  return merged;
+}
+
+function capPoints(entries) {
+  if (entries.length <= MAX_POINT_MARKERS) return entries;
+  const step = Math.ceil(entries.length / MAX_POINT_MARKERS);
   const result = [];
-  for (let i = 0; i < points.length; i += step) {
-    result.push({ point: points[i], index: i });
+  for (let i = 0; i < entries.length; i += step) {
+    result.push(entries[i]);
   }
-  const lastIndex = points.length - 1;
-  if (result[result.length - 1].index !== lastIndex) {
-    result.push({ point: points[lastIndex], index: lastIndex });
+  const last = entries[entries.length - 1];
+  if (result[result.length - 1].index !== last.index) {
+    result.push(last);
   }
   return result;
 }
@@ -317,7 +336,7 @@ export default function MapView({
 
       {tracks.map((track) => {
         const fallbackColor = colors[track.entityId] || '#2563eb';
-        return samplePoints(track.points).map(({ point, index }) => {
+        return capPoints(mergeNearbyPoints(track.points)).map(({ point, index, count, last }) => {
           const key = `${track.entityId}-${index}-${point.latitude}-${point.longitude}`;
           const color = modeColor(point.mode, fallbackColor);
           return (
@@ -333,6 +352,14 @@ export default function MapView({
                 <br />
                 {formatTime(point.timestamp)}
                 {point.accuracy != null ? ` · ±${Math.round(point.accuracy)} m` : ''}
+                {count > 1 ? (
+                  <>
+                    <br />
+                    <span className="popup-stay">
+                      {count} positions regroupées · jusqu’à {formatTime(last.timestamp)}
+                    </span>
+                  </>
+                ) : null}
                 {point.mode ? (
                   <>
                     <br />
