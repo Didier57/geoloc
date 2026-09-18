@@ -12,11 +12,22 @@ import {
 } from 'react-leaflet';
 import { divIcon } from 'leaflet';
 import { api } from '../api.js';
-import { bearingDegrees, detectStays, haversineKm, MODE_LABELS, modeColor } from '../motion.js';
+import {
+  bearingDegrees,
+  detectStays,
+  haversineKm,
+  MODE_LABELS,
+  modeColor,
+  STAY_MIN_MINUTES,
+  STAY_RADIUS_KM,
+} from '../motion.js';
 
 const MAX_POINT_MARKERS = 500;
 const POINT_MERGE_RADIUS_M = 200;
 const SPIKE_RADIUS_M = 200;
+const STAY_OUTLIER_TOLERANCE = 3;
+const STAY_MERGE_RADIUS_M = 250;
+const STAY_MERGE_GAP_MINUTES = 10;
 const MAX_ARROWS = 40;
 const ARROW_STEP_KM = 0.3;
 const STAY_COLOR = '#7c3aed';
@@ -116,6 +127,56 @@ function cleanTrack(points, radiusKm = SPIKE_RADIUS_M / 1000) {
   }
   kept.push(points[points.length - 1]);
   return kept;
+}
+
+function mergeStays(
+  stays,
+  radiusKm = STAY_MERGE_RADIUS_M / 1000,
+  maxGapMs = STAY_MERGE_GAP_MINUTES * 60000,
+) {
+  const merged = [];
+  stays.forEach((stay) => {
+    const previous = merged[merged.length - 1];
+    if (previous) {
+      const distance = haversineKm(
+        previous.latitude,
+        previous.longitude,
+        stay.latitude,
+        stay.longitude,
+      );
+      const startMs = new Date(stay.start).getTime();
+      const previousEndMs = new Date(previous.end).getTime();
+      if (distance <= radiusKm && startMs - previousEndMs <= maxGapMs) {
+        const total = previous.count + stay.count;
+        previous.latitude = (previous.latitude * previous.count + stay.latitude * stay.count) / total;
+        previous.longitude =
+          (previous.longitude * previous.count + stay.longitude * stay.count) / total;
+        previous.count = total;
+        previous.end = stay.end;
+        previous.durationMs = new Date(stay.end).getTime() - new Date(previous.start).getTime();
+        return;
+      }
+    }
+    merged.push({ ...stay });
+  });
+  return merged;
+}
+
+function collapseStays(points, stays) {
+  if (!stays.length) return points;
+  const ranges = stays.map((stay) => ({
+    start: new Date(stay.start).getTime(),
+    end: new Date(stay.end).getTime(),
+    latitude: stay.latitude,
+    longitude: stay.longitude,
+  }));
+  return points.map((point) => {
+    const time = new Date(point.timestamp).getTime();
+    if (!Number.isFinite(time)) return point;
+    const range = ranges.find((item) => time >= item.start && time <= item.end);
+    if (!range) return point;
+    return { ...point, latitude: range.latitude, longitude: range.longitude };
+  });
 }
 
 function mergeNearbyPoints(points, radiusKm = POINT_MERGE_RADIUS_M / 1000) {
@@ -262,14 +323,21 @@ export default function MapView({
   const placesRequested = useRef(new Set());
 
   const displayTracks = useMemo(
-    () => tracks.map((track) => ({ ...track, points: cleanTrack(track.points) })),
+    () =>
+      tracks.map((track) => {
+        const cleaned = cleanTrack(track.points);
+        const trackStays = mergeStays(
+          detectStays(cleaned, STAY_RADIUS_KM, STAY_MIN_MINUTES, STAY_OUTLIER_TOLERANCE),
+        );
+        return { ...track, points: collapseStays(cleaned, trackStays), stays: trackStays };
+      }),
     [tracks],
   );
 
   const stays = useMemo(
     () =>
       displayTracks.flatMap((track) =>
-        detectStays(track.points).map((stay, index) => ({
+        track.stays.map((stay, index) => ({
           ...stay,
           key: `${track.entityId}-stay-${index}-${stay.latitude}-${stay.longitude}`,
           entityId: track.entityId,

@@ -44,16 +44,23 @@ export function modeColor(mode, fallback) {
 export const STAY_RADIUS_KM = 0.2;
 export const STAY_MIN_MINUTES = 5;
 
-export function detectStays(points, radiusKm = STAY_RADIUS_KM, minMinutes = STAY_MIN_MINUTES) {
+export function detectStays(
+  points,
+  radiusKm = STAY_RADIUS_KM,
+  minMinutes = STAY_MIN_MINUTES,
+  outlierTolerance = 0,
+) {
   const stays = [];
   let cluster = null;
+  let outliers = 0;
 
   const flush = () => {
     if (!cluster) return;
-    const start = new Date(cluster.points[0].timestamp).getTime();
+    const first = cluster.points[0];
     const last = cluster.points[cluster.points.length - 1];
-    const end = new Date(last.timestamp).getTime();
-    const durationMs = end - start;
+    const startMs = new Date(first.timestamp).getTime();
+    const endMs = new Date(last.timestamp).getTime();
+    const durationMs = endMs - startMs;
     if (
       cluster.points.length >= 2 &&
       Number.isFinite(durationMs) &&
@@ -62,7 +69,7 @@ export function detectStays(points, radiusKm = STAY_RADIUS_KM, minMinutes = STAY
       stays.push({
         latitude: cluster.centerLat,
         longitude: cluster.centerLng,
-        start: cluster.points[0].timestamp,
+        start: first.timestamp,
         end: last.timestamp,
         durationMs,
         count: cluster.points.length,
@@ -71,33 +78,39 @@ export function detectStays(points, radiusKm = STAY_RADIUS_KM, minMinutes = STAY
     cluster = null;
   };
 
+  const beginCluster = (point) => {
+    cluster = {
+      centerLat: point.latitude,
+      centerLng: point.longitude,
+      points: [point],
+    };
+    outliers = 0;
+  };
+
   points.forEach((point) => {
     if (point.latitude == null || point.longitude == null) return;
     if (!cluster) {
-      cluster = {
-        anchorLat: point.latitude,
-        anchorLng: point.longitude,
-        centerLat: point.latitude,
-        centerLng: point.longitude,
-        points: [point],
-      };
+      beginCluster(point);
       return;
     }
-    const distance = haversineKm(cluster.anchorLat, cluster.anchorLng, point.latitude, point.longitude);
+    const distance = haversineKm(
+      cluster.centerLat,
+      cluster.centerLng,
+      point.latitude,
+      point.longitude,
+    );
     if (distance <= radiusKm) {
       cluster.points.push(point);
       const n = cluster.points.length;
       cluster.centerLat += (point.latitude - cluster.centerLat) / n;
       cluster.centerLng += (point.longitude - cluster.centerLng) / n;
-    } else {
+      outliers = 0;
+      return;
+    }
+    outliers += 1;
+    if (outliers > outlierTolerance) {
       flush();
-      cluster = {
-        anchorLat: point.latitude,
-        anchorLng: point.longitude,
-        centerLat: point.latitude,
-        centerLng: point.longitude,
-        points: [point],
-      };
+      beginCluster(point);
     }
   });
   flush();
