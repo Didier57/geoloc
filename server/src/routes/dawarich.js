@@ -1,13 +1,23 @@
 import { Router } from 'express';
 import { requireAdmin, requireAuth } from '../auth.js';
-import { deletedPointsFor, getDawarichConfig, setDawarichConfig } from '../store.js';
+import { getDawarichConfig, getHaConfig, setDawarichConfig } from '../store.js';
 import { decryptSecret, encryptSecret } from '../utils/crypto.js';
 import { sendPoints, testConnection, toFeature } from '../dawarich.js';
-import { readDay } from '../history.js';
 import { listDays } from '../dates.js';
+import { collectTracks } from '../tracks.js';
 
 const router = Router();
 router.use(requireAuth, requireAdmin);
+
+function currentHaConfig() {
+  const ha = getHaConfig();
+  if (!ha?.url || !ha?.tokenEnc) return null;
+  try {
+    return { url: ha.url, token: decryptSecret(ha.tokenEnc) };
+  } catch {
+    return null;
+  }
+}
 
 function serialize() {
   const cfg = getDawarichConfig();
@@ -106,33 +116,27 @@ router.post('/export', async (req, res) => {
 
   const days = listDays(from, to);
   const deviceOverride = String(req.body?.deviceId ?? cfg.deviceId ?? '').trim();
+  const { tracks, haError } = await collectTracks(currentHaConfig(), entityIds, days);
 
   const features = [];
   const perEntity = {};
   let skipped = 0;
 
-  for (const id of entityIds) {
-    const deleted = new Set(deletedPointsFor(id));
+  for (const track of tracks) {
     let count = 0;
-    for (const day of days) {
-      for (const point of readDay(id, day)) {
-        if (!point?.timestamp) {
-          skipped += 1;
-          continue;
-        }
-        if (deleted.has(String(point.timestamp))) {
-          skipped += 1;
-          continue;
-        }
-        if (!Number.isFinite(Number(point.latitude)) || !Number.isFinite(Number(point.longitude))) {
-          skipped += 1;
-          continue;
-        }
-        features.push(toFeature(point, deviceOverride || id));
-        count += 1;
+    for (const point of track.points) {
+      if (
+        !point?.timestamp ||
+        !Number.isFinite(Number(point.latitude)) ||
+        !Number.isFinite(Number(point.longitude))
+      ) {
+        skipped += 1;
+        continue;
       }
+      features.push(toFeature(point, deviceOverride || track.entityId));
+      count += 1;
     }
-    perEntity[id] = count;
+    perEntity[track.entityId] = count;
   }
 
   if (features.length === 0) {
@@ -145,6 +149,7 @@ router.post('/export', async (req, res) => {
       days: days.length,
       entities: entityIds.length,
       perEntity,
+      haError,
     });
   }
 
@@ -159,6 +164,7 @@ router.post('/export', async (req, res) => {
       days: days.length,
       entities: entityIds.length,
       perEntity,
+      haError,
     });
   } catch (err) {
     res.status(502).json({

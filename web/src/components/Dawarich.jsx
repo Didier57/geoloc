@@ -273,6 +273,12 @@ function ExportReport({ report }) {
       {report.skipped > 0 && (
         <div className="muted">{report.skipped} point(s) ignoré(s) (supprimés ou incomplets).</div>
       )}
+      {report.haError && (
+        <div className="error">
+          Home Assistant n'a pas pu être interrogé ({report.haError}) : seules les données déjà archivées ont
+          été envoyées.
+        </div>
+      )}
       {report.points === 0 && (
         <div className="muted">Aucun point enregistré sur le serveur pour cette période.</div>
       )}

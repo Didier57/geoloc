@@ -1,21 +1,14 @@
 import { Router } from 'express';
 import { requireAdmin, requireAuth } from '../auth.js';
-import {
-  clearEmptyDay,
-  deletedPointsFor,
-  getHaConfig,
-  hasEmptyDay,
-  markEmptyDay,
-  markPointDeleted,
-} from '../store.js';
+import { getHaConfig, markPointDeleted } from '../store.js';
 import { decryptSecret } from '../utils/crypto.js';
-import { fetchHistory, fetchStates, mapTrackableEntities } from '../homeassistant.js';
+import { fetchStates, mapTrackableEntities } from '../homeassistant.js';
 import { reverseGeocode } from '../geocode.js';
 import { nearbyPlaces } from '../places.js';
-import { deletePoint, hasDay, readDay, saveDay } from '../history.js';
-import { dayEnd, dayStart, listDays, todayString, toDayString } from '../dates.js';
+import { deletePoint } from '../history.js';
+import { listDays, toDayString } from '../dates.js';
 import { runArchive } from '../archive.js';
-import { classifyTrack } from '../motion.js';
+import { collectTracks } from '../tracks.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -62,84 +55,7 @@ router.get('/tracks', requireConfig, async (req, res) => {
   const to = req.query.to || from;
 
   const days = listDays(from, to);
-  const today = todayString();
-  const dbPoints = new Map(entityIds.map((id) => [id, []]));
-  const haPoints = new Map(entityIds.map((id) => [id, []]));
-  const needsHa = new Map();
-  let haError = null;
-  let fromDb = false;
-  let fromHa = false;
-
-  for (const day of days) {
-    const isPast = day < today;
-    const startMs = dayStart(day).getTime();
-    const endMs = dayEnd(day).getTime();
-    const missing = [];
-    for (const id of entityIds) {
-      if (isPast && hasDay(id, day)) {
-        const stored = readDay(id, day).filter((point) => {
-          const time = point?.timestamp ? new Date(point.timestamp).getTime() : NaN;
-          return Number.isFinite(time) && time >= startMs && time <= endMs;
-        });
-        if (stored.length > 0) {
-          dbPoints.get(id).push(...stored);
-          fromDb = true;
-          continue;
-        }
-        if (!hasEmptyDay(id, day)) missing.push(id);
-      } else if (isPast && hasEmptyDay(id, day)) {
-        // Jour déjà vérifié et archivé sans données : inutile de réinterroger Home Assistant.
-      } else if (day <= today) {
-        missing.push(id);
-      }
-    }
-    if (missing.length > 0) needsHa.set(day, missing);
-  }
-
-  for (const [day, missing] of needsHa) {
-    let tracks;
-    try {
-      tracks = await fetchHistory(req.ha, missing, dayStart(day).toISOString(), dayEnd(day).toISOString());
-    } catch (err) {
-      haError = err.message;
-      continue;
-    }
-    const byEntity = new Map(tracks.map((track) => [track.entityId, track.points]));
-    for (const id of missing) {
-      const points = byEntity.get(id) || [];
-      if (day < today) {
-        if (points.length > 0) {
-          saveDay(id, day, points);
-          clearEmptyDay(id, day);
-        } else {
-          markEmptyDay(id, day);
-        }
-      }
-      haPoints.get(id).push(...points);
-      if (points.length > 0) fromHa = true;
-    }
-  }
-
-  const tracks = entityIds.map((id) => {
-    const merged = new Map();
-    const deleted = new Set(deletedPointsFor(id));
-    for (const point of [...dbPoints.get(id), ...haPoints.get(id)]) {
-      if (!point?.timestamp) continue;
-      if (deleted.has(String(point.timestamp))) continue;
-      merged.set(point.timestamp, point);
-    }
-    const sorted = [...merged.values()].sort(
-      (a, b) => new Date(a.timestamp) - new Date(b.timestamp),
-    );
-    return {
-      entityId: id,
-      points: classifyTrack(sorted),
-    };
-  });
-
-  const total = tracks.reduce((sum, track) => sum + track.points.length, 0);
-  let source = 'none';
-  if (total > 0) source = fromDb && fromHa ? 'mixed' : fromHa ? 'ha' : 'db';
+  const { tracks, source, haError } = await collectTracks(req.ha, entityIds, days);
 
   res.json({ tracks, source, haError });
 });
