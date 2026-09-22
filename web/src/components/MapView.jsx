@@ -35,6 +35,84 @@ const PLACES_MIN_ZOOM = 17;
 const PLACES_RADIUS_M = 150;
 const MAX_PLACE_MARKERS = 80;
 
+const BASEMAP_STORAGE_KEY = 'geoloc.basemap';
+const BASEMAP_DEFAULT = { light: 'osm', dark: 'carto-dark' };
+
+const BASEMAPS = [
+  {
+    id: 'osm',
+    label: 'OpenStreetMap',
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    maxZoom: 19,
+  },
+  {
+    id: 'osmfr',
+    label: 'OSM France',
+    url: 'https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png',
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> France',
+    maxZoom: 19,
+  },
+  {
+    id: 'humanitarian',
+    label: 'Humanitaire',
+    url: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributeurs · Humanitarian',
+    maxZoom: 19,
+  },
+  {
+    id: 'cyclosm',
+    label: 'CyclOSM',
+    url: 'https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png',
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributeurs · CyclOSM',
+    maxZoom: 19,
+  },
+  {
+    id: 'opentopomap',
+    label: 'Relief',
+    url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributeurs, SRTM · <a href="https://opentopomap.org">OpenTopoMap</a>',
+    maxZoom: 17,
+  },
+  {
+    id: 'carto-light',
+    label: 'Clair',
+    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    maxZoom: 20,
+  },
+  {
+    id: 'carto-dark',
+    label: 'Sombre',
+    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    maxZoom: 20,
+  },
+  {
+    id: 'satellite',
+    label: 'Satellite',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Tiles &copy; Esri — Esri, Maxar, Earthstar Geographics',
+    maxZoom: 19,
+  },
+];
+
+function readStoredBasemap() {
+  try {
+    const value = localStorage.getItem(BASEMAP_STORAGE_KEY);
+    if (value && BASEMAPS.some((item) => item.id === value)) return value;
+  } catch {
+    /* localStorage indisponible */
+  }
+  return null;
+}
+
 function ZoomWatcher({ onChange }) {
   const map = useMapEvents({
     zoomend: () => onChange(map.getZoom()),
@@ -303,6 +381,7 @@ export default function MapView({
   entities,
   selectedIds,
   colors,
+  theme = 'light',
   showLive = true,
   isAdmin = false,
   onPointDeleted,
@@ -321,6 +400,20 @@ export default function MapView({
   const [zoom, setZoom] = useState(6);
   const [places, setPlaces] = useState({});
   const placesRequested = useRef(new Set());
+  const [basemap, setBasemap] = useState(readStoredBasemap);
+  const [basemapOpen, setBasemapOpen] = useState(false);
+
+  const basemapId = basemap || BASEMAP_DEFAULT[theme] || 'osm';
+  const activeBasemap = BASEMAPS.find((item) => item.id === basemapId) || BASEMAPS[0];
+
+  useEffect(() => {
+    if (!basemap) return;
+    try {
+      localStorage.setItem(BASEMAP_STORAGE_KEY, basemap);
+    } catch {
+      /* localStorage indisponible */
+    }
+  }, [basemap]);
 
   const displayTracks = useMemo(
     () =>
@@ -415,8 +508,10 @@ export default function MapView({
   return (
     <MapContainer center={[46.6, 2.5]} zoom={6} style={{ height: '100%', width: '100%' }}>
       <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        key={activeBasemap.id}
+        url={activeBasemap.url}
+        attribution={activeBasemap.attribution}
+        maxZoom={activeBasemap.maxZoom}
       />
 
       {displayTracks.map((track) => {
@@ -558,6 +653,42 @@ export default function MapView({
       ))}
 
       <FitBounds tracks={displayTracks} entities={visibleEntities} />
+
+      <div className="basemap-control">
+        <button
+          type="button"
+          className="basemap-toggle"
+          onClick={() => setBasemapOpen((open) => !open)}
+          title="Changer le fond de carte"
+          aria-label="Changer le fond de carte"
+          aria-expanded={basemapOpen}
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+            <path
+              d="M9 3 3 5.5v15L9 18l6 3 6-2.5v-15L15 6 9 3zm0 2.2 6 3v12.4l-6-3V5.2z"
+              fill="currentColor"
+            />
+          </svg>
+          <span>{activeBasemap.label}</span>
+        </button>
+        {basemapOpen && (
+          <div className="basemap-menu">
+            {BASEMAPS.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={`basemap-item ${item.id === basemapId ? 'active' : ''}`}
+                onClick={() => {
+                  setBasemap(item.id);
+                  setBasemapOpen(false);
+                }}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </MapContainer>
   );
 }

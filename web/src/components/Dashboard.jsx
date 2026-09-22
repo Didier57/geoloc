@@ -285,6 +285,7 @@ export default function Dashboard({ user, onLogout }) {
               entities={entities}
               selectedIds={selectedIds}
               colors={colors}
+              theme={theme}
               showLive={date === toDateInput(new Date())}
               isAdmin={isAdmin}
               onPointDeleted={loadTracks}
