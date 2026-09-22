@@ -36,7 +36,6 @@ const PLACES_RADIUS_M = 150;
 const MAX_PLACE_MARKERS = 80;
 
 const BASEMAP_STORAGE_KEY = 'geoloc.basemap';
-const BASEMAP_DEFAULT = { light: 'osm', dark: 'carto-dark' };
 
 const BASEMAPS = [
   {
@@ -77,22 +76,6 @@ const BASEMAPS = [
     attribution:
       '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributeurs, SRTM · <a href="https://opentopomap.org">OpenTopoMap</a>',
     maxZoom: 17,
-  },
-  {
-    id: 'carto-light',
-    label: 'Clair',
-    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-    attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · &copy; <a href="https://carto.com/attributions">CARTO</a>',
-    maxZoom: 20,
-  },
-  {
-    id: 'carto-dark',
-    label: 'Sombre',
-    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · &copy; <a href="https://carto.com/attributions">CARTO</a>',
-    maxZoom: 20,
   },
   {
     id: 'satellite',
@@ -381,7 +364,6 @@ export default function MapView({
   entities,
   selectedIds,
   colors,
-  theme = 'light',
   showLive = true,
   isAdmin = false,
   onPointDeleted,
@@ -403,7 +385,7 @@ export default function MapView({
   const [basemap, setBasemap] = useState(readStoredBasemap);
   const [basemapOpen, setBasemapOpen] = useState(false);
 
-  const basemapId = basemap || BASEMAP_DEFAULT[theme] || 'osm';
+  const basemapId = basemap || 'osm';
   const activeBasemap = BASEMAPS.find((item) => item.id === basemapId) || BASEMAPS[0];
 
   useEffect(() => {
