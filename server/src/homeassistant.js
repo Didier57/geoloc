@@ -47,6 +47,8 @@ export async function fetchStates(cfg) {
   return Array.isArray(states) ? states : [];
 }
 
+const TRACKABLE_DOMAINS = new Set(['person', 'device_tracker']);
+
 export function mapTrackableEntities(states) {
   return states
     .map((s) => ({
@@ -62,7 +64,12 @@ export function mapTrackableEntities(states) {
       picture: s.attributes?.entity_picture || null,
       lastUpdated: s.last_updated || s.last_changed || null,
     }))
-    .filter((entity) => entity.latitude !== null && entity.longitude !== null)
+    .filter(
+      (entity) =>
+        TRACKABLE_DOMAINS.has(entity.domain) &&
+        entity.latitude !== null &&
+        entity.longitude !== null,
+    )
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 

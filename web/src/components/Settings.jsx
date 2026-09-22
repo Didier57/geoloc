@@ -145,15 +145,15 @@ export default function Settings({ config, onClose, onSaved, onEntitiesSaved }) 
               </button>
             </div>
             <p className="muted">
-              Cochez les entités géolocalisées à afficher sur la carte. Seules celles-ci apparaîtront dans la fenêtre
-              principale.
+              Cochez les entités à afficher sur la carte. Seules les entités de suivi (personnes et appareils) sont
+              proposées ; la météo et les éléments fixes sont ignorés.
             </p>
             {loadingEntities && <p className="muted">Chargement des entités…</p>}
             {entitiesError && <div className="error">{entitiesError}</div>}
             {!loadingEntities && (
               <div className="chips entities-list">
                 {entities.length === 0 && (
-                  <span className="muted">Aucune entité géolocalisée trouvée dans Home Assistant.</span>
+                  <span className="muted">Aucune entité de suivi (personne ou appareil) trouvée dans Home Assistant.</span>
                 )}
                 {entities.map((entity) => {
                   const checked = selected.has(entity.entityId);
