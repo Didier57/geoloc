@@ -477,6 +477,44 @@ select:focus {
   font-weight: 600;
 }
 
+.line-actions {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 4px 14px var(--shadow-map);
+  font-size: 12px;
+  color: var(--label);
+  max-width: calc(100% - 20px);
+}
+
+.line-actions-head {
+  font-weight: 700;
+}
+
+.line-actions-times {
+  color: var(--muted-2);
+}
+
+.line-actions-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.line-actions-buttons .btn {
+  font-size: 12px;
+  padding: 5px 10px;
+}
+
 .route-arrow {
   background: transparent;
   border: none;

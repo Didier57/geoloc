@@ -397,12 +397,38 @@ function buildRuns(points, fallbackColor) {
         mode,
         color: modeColor(mode, fallbackColor),
         positions: [[previous.latitude, previous.longitude]],
+        points: [previous],
       };
       runs.push(current);
     }
     current.positions.push([point.latitude, point.longitude]);
+    current.points.push(point);
   }
   return runs;
+}
+
+function nearestSegmentIndex(points, latitude, longitude) {
+  const scaleX = 111.32 * Math.max(Math.cos((latitude * Math.PI) / 180), 0.01);
+  const scaleY = 111.32;
+  let best = 0;
+  let bestDistance = Infinity;
+  for (let i = 1; i < points.length; i += 1) {
+    const x1 = (points[i - 1].longitude - longitude) * scaleX;
+    const y1 = (points[i - 1].latitude - latitude) * scaleY;
+    const x2 = (points[i].longitude - longitude) * scaleX;
+    const y2 = (points[i].latitude - latitude) * scaleY;
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const lengthSq = dx * dx + dy * dy;
+    let t = lengthSq ? -(x1 * dx + y1 * dy) / lengthSq : 0;
+    t = Math.max(0, Math.min(1, t));
+    const distance = Math.hypot(x1 + t * dx, y1 + t * dy);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = i - 1;
+    }
+  }
+  return best;
 }
 
 function arrowSamples(points) {
@@ -580,6 +606,7 @@ export default function MapView({
   }, [basemap]);
 
   const [labels, setLabels] = useState([]);
+  const [lineTarget, setLineTarget] = useState(null);
 
   useEffect(() => {
     api
@@ -727,6 +754,36 @@ export default function MapView({
     [onPointDeleted, onError],
   );
 
+  const handleLineClick = useCallback(
+    (track, run, event) => {
+      if (!isAdmin) return;
+      const index = nearestSegmentIndex(run.points, event.latlng.lat, event.latlng.lng);
+      const from = run.points[index];
+      const to = run.points[index + 1];
+      if (!from?.timestamp || !to?.timestamp) return;
+      const fromMs = new Date(from.timestamp).getTime();
+      const toMs = new Date(to.timestamp).getTime();
+      setLineTarget({
+        entityId: track.entityId,
+        from,
+        to,
+        distanceKm: haversineKm(from.latitude, from.longitude, to.latitude, to.longitude),
+        durationMs: Number.isFinite(fromMs) && Number.isFinite(toMs) ? toMs - fromMs : 0,
+      });
+    },
+    [isAdmin],
+  );
+
+  const removeLinePoint = useCallback(
+    async (point) => {
+      const target = lineTarget;
+      setLineTarget(null);
+      if (!target || !point?.timestamp) return;
+      await removePoint(`line-${point.timestamp}`, target.entityId, point.timestamp);
+    },
+    [lineTarget, removePoint],
+  );
+
   return (
     <MapContainer center={[46.6, 2.5]} zoom={6} style={{ height: '100%', width: '100%' }}>
       <TileLayer
@@ -743,9 +800,24 @@ export default function MapView({
             key={`${track.entityId}-run-${index}-${run.mode}`}
             positions={run.positions}
             pathOptions={{ color: run.color, weight: 4, opacity: 0.85 }}
+            eventHandlers={
+              isAdmin
+                ? { click: (event) => handleLineClick(track, run, event) }
+                : undefined
+            }
           />
         ));
       })}
+
+      {lineTarget ? (
+        <Polyline
+          positions={[
+            [lineTarget.from.latitude, lineTarget.from.longitude],
+            [lineTarget.to.latitude, lineTarget.to.longitude],
+          ]}
+          pathOptions={{ color: '#f59e0b', weight: 7, opacity: 0.9 }}
+        />
+      ) : null}
 
       {displayTracks.map((track) => {
         const fallbackColor = colors[track.entityId] || '#2563eb';
@@ -940,6 +1012,39 @@ export default function MapView({
           </div>
         )}
       </div>
+
+      {lineTarget ? (
+        <div className="line-actions">
+          <div className="line-actions-head">
+            Trait direct : {formatDistance(lineTarget.distanceKm)} en{' '}
+            {formatDuration(lineTarget.durationMs)}
+          </div>
+          <div className="line-actions-times">
+            De {formatTime(lineTarget.from.timestamp)} à {formatTime(lineTarget.to.timestamp)}
+          </div>
+          <div className="line-actions-buttons">
+            <button
+              type="button"
+              className="btn danger"
+              onClick={() => removeLinePoint(lineTarget.from)}
+              disabled={!!removing}
+            >
+              Supprimer le départ
+            </button>
+            <button
+              type="button"
+              className="btn danger"
+              onClick={() => removeLinePoint(lineTarget.to)}
+              disabled={!!removing}
+            >
+              Supprimer l’arrivée
+            </button>
+            <button type="button" className="btn ghost" onClick={() => setLineTarget(null)}>
+              Annuler
+            </button>
+          </div>
+        </div>
+      ) : null}
     </MapContainer>
   );
 }
