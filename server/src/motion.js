@@ -65,8 +65,12 @@ export function filterAnomalies(points) {
     const point = points[i];
     const previous = kept[kept.length - 1];
     const next = points[i + 1];
-    const localSpeed = impliedSpeedKmh(points[i - 1], point);
-    if (localSpeed != null && localSpeed > config.maxSpeedKmh) continue;
+    const raw = points[i - 1];
+    const distanceKm = haversineKm(raw.latitude, raw.longitude, point.latitude, point.longitude);
+    const localSpeed = impliedSpeedKmh(raw, point);
+    if (distanceKm >= config.anomalyMinKm && localSpeed != null && localSpeed > config.maxSpeedKmh) {
+      continue;
+    }
     if (isRoundTripSpike(previous, point, next, config.anomalyMinKm)) continue;
     kept.push(point);
   }
