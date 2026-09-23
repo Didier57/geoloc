@@ -80,11 +80,16 @@ export default function Dashboard({ user, onLogout }) {
       const { entities: list } = await api.entities();
       setEntities(list);
       const current = selectedRef.current[0];
-      const kept = current && list.some((entity) => entity.entityId === current) ? current : null;
-      const next = kept || list[0]?.entityId || null;
-      const nextIds = next ? [next] : [];
-      setSelectedIds(nextIds);
-      if (next && next !== current) api.setSelection(next).catch(() => {});
+      if (current) {
+        // On garde l'entité choisie même si elle est absente de la liste à cet
+        // instant (GPS coupé, Home Assistant indisponible) : sinon l'appli
+        // basculait toute seule sur un autre device.
+        setSelectedIds([current]);
+      } else {
+        const next = list[0]?.entityId || null;
+        setSelectedIds(next ? [next] : []);
+        if (next) api.setSelection(next).catch(() => {});
+      }
       setError('');
     } catch (err) {
       if (err.status === 409) {
