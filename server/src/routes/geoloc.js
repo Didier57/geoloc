@@ -61,7 +61,7 @@ router.get('/tracks', requireConfig, async (req, res) => {
 });
 
 router.post('/archive', requireConfig, async (req, res) => {
-  const result = await runArchive({ force: req.body?.force === true });
+  const result = await runArchive({ force: req.body?.force === true, all: req.body?.all === true });
   res.json({ ok: true, ...result });
 });
 

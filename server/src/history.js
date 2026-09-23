@@ -46,6 +46,18 @@ export function saveDay(entityId, day, points) {
   return list.length;
 }
 
+export function overwriteDay(entityId, day, points) {
+  const file = dayFile(entityId, day);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const list = [...(points || [])].sort(
+    (a, b) => new Date(a.timestamp) - new Date(b.timestamp),
+  );
+  const tmp = `${file}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(list));
+  fs.renameSync(tmp, file);
+  return list.length;
+}
+
 export function deletePoint(entityId, day, timestamp) {
   const existing = readDay(entityId, day);
   if (existing.length === 0) return 0;

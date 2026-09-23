@@ -54,6 +54,8 @@ export default function Dashboard({ user, onLogout }) {
   const [showUsers, setShowUsers] = useState(false);
   const [showBackup, setShowBackup] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
+  const [syncingAll, setSyncingAll] = useState(false);
   const autoSyncDone = useRef(false);
 
   const loadConfig = useCallback(async () => {
@@ -184,6 +186,28 @@ export default function Dashboard({ user, onLogout }) {
     }
   }
 
+  async function handleSyncAll() {
+    setSyncingAll(true);
+    setError('');
+    try {
+      const result = await api.archive(true, true);
+      await loadEntities();
+      await loadTracks();
+      const cleaned = result?.cleaned;
+      if (cleaned && cleaned.removed > 0) {
+        window.alert(
+          `Nettoyage terminé : ${cleaned.removed} point(s) incohérent(s) retiré(s) sur ${cleaned.days} jour(s).`,
+        );
+      } else {
+        window.alert('Synchronisation complète terminée : aucun point incohérent trouvé.');
+      }
+    } catch (err) {
+      if (err.status !== 409) setError(err.message);
+    } finally {
+      setSyncingAll(false);
+    }
+  }
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -219,24 +243,68 @@ export default function Dashboard({ user, onLogout }) {
           {syncing ? 'Synchronisation…' : 'Synchroniser'}
         </button>
         {isAdmin && (
-          <button className="btn ghost" onClick={() => setShowSettings(true)}>
-            Home Assistant
-          </button>
-        )}
-        {isAdmin && (
-          <button className="btn ghost" onClick={() => setShowUsers(true)}>
-            Utilisateurs
-          </button>
-        )}
-        {isAdmin && (
-          <button className="btn ghost" onClick={() => setShowBackup(true)}>
-            Sauvegarde
-          </button>
-        )}
-        {isAdmin && (
-          <button className="btn ghost" onClick={() => setShowImport(true)}>
-            Import Google
-          </button>
+          <div className="admin-menu">
+            <button
+              className="btn ghost"
+              onClick={() => setAdminOpen((value) => !value)}
+              aria-expanded={adminOpen}
+            >
+              Administrateur ▾
+            </button>
+            {adminOpen && (
+              <>
+                <div className="menu-backdrop" onClick={() => setAdminOpen(false)} />
+                <div className="menu-panel">
+                  <button
+                    className="menu-item"
+                    onClick={() => {
+                      setAdminOpen(false);
+                      setShowSettings(true);
+                    }}
+                  >
+                    Home Assistant
+                  </button>
+                  <button
+                    className="menu-item"
+                    onClick={() => {
+                      setAdminOpen(false);
+                      setShowUsers(true);
+                    }}
+                  >
+                    Utilisateurs
+                  </button>
+                  <button
+                    className="menu-item"
+                    onClick={() => {
+                      setAdminOpen(false);
+                      setShowBackup(true);
+                    }}
+                  >
+                    Sauvegarde
+                  </button>
+                  <button
+                    className="menu-item"
+                    onClick={() => {
+                      setAdminOpen(false);
+                      setShowImport(true);
+                    }}
+                  >
+                    Import Google
+                  </button>
+                  <button
+                    className="menu-item"
+                    onClick={() => {
+                      setAdminOpen(false);
+                      handleSyncAll();
+                    }}
+                    disabled={syncingAll}
+                  >
+                    {syncingAll ? 'Synchronisation complète…' : 'Synchroniser tout'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         )}
         <button className="btn ghost" onClick={onLogout}>
           Déconnexion

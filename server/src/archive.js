@@ -3,7 +3,8 @@ import { getHaConfig, hasEmptyDay, markEmptyDay, clearEmptyDay } from './store.j
 import { decryptSecret } from './utils/crypto.js';
 import { fetchHistory } from './homeassistant.js';
 import { dayStart, dayEnd, shiftDay, todayString } from './dates.js';
-import { hasDay, saveDay } from './history.js';
+import { hasDay, listArchives, overwriteDay, readDay, saveDay } from './history.js';
+import { filterAnomalies } from './motion.js';
 
 let timer = null;
 
@@ -17,7 +18,7 @@ function currentConfig() {
   }
 }
 
-export async function runArchive({ force = false } = {}) {
+export async function runArchive({ force = false, all = false } = {}) {
   const cfg = currentConfig();
   if (!cfg) return { archived: 0, skipped: 'ha_not_configured' };
 
@@ -59,7 +60,26 @@ export async function runArchive({ force = false } = {}) {
     console.log(`[archive] ${dayString}: ${missing.length} entité(s) traitée(s)`);
   }
 
-  return { archived, failures };
+  const cleaned = all ? cleanArchives() : null;
+  return { archived, failures, cleaned };
+}
+
+export function cleanArchives() {
+  let days = 0;
+  let removed = 0;
+  for (const { entityId, days: dayList } of listArchives()) {
+    for (const day of dayList) {
+      const points = readDay(entityId, day);
+      if (points.length === 0) continue;
+      const cleaned = filterAnomalies(points);
+      if (cleaned.length === points.length) continue;
+      overwriteDay(entityId, day, cleaned);
+      removed += points.length - cleaned.length;
+      days += 1;
+    }
+  }
+  if (removed > 0) console.log(`[archive] nettoyage: ${removed} point(s) sur ${days} jour(s)`);
+  return { days, removed };
 }
 
 function msUntilNextMidnight() {
