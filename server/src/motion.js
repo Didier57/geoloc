@@ -40,23 +40,37 @@ export function impliedSpeedKmh(a, b) {
   return distanceKm / ((to - from) / 3600000);
 }
 
+function isRoundTripSpike(previous, current, next, minKm) {
+  const dPrev = haversineKm(
+    previous.latitude,
+    previous.longitude,
+    current.latitude,
+    current.longitude,
+  );
+  const dNext = haversineKm(
+    current.latitude,
+    current.longitude,
+    next.latitude,
+    next.longitude,
+  );
+  if (dPrev < minKm || dNext < minKm) return false;
+  const dGap = haversineKm(previous.latitude, previous.longitude, next.latitude, next.longitude);
+  return dGap < Math.min(dPrev, dNext) * 0.5;
+}
+
 export function filterAnomalies(points) {
-  if (!Array.isArray(points) || points.length < 2) return Array.isArray(points) ? points : [];
+  if (!Array.isArray(points) || points.length < 2) return Array.isArray(points) ? points.slice() : [];
   const kept = [points[0]];
-  for (let i = 1; i < points.length; i += 1) {
+  for (let i = 1; i < points.length - 1; i += 1) {
     const point = points[i];
     const previous = kept[kept.length - 1];
-    const distanceKm = haversineKm(
-      previous.latitude,
-      previous.longitude,
-      point.latitude,
-      point.longitude,
-    );
-    const speed = impliedSpeedKmh(previous, point);
-    const impossible =
-      distanceKm >= config.anomalyMinKm && speed != null && speed > config.maxSpeedKmh;
-    if (!impossible) kept.push(point);
+    const next = points[i + 1];
+    const localSpeed = impliedSpeedKmh(points[i - 1], point);
+    if (localSpeed != null && localSpeed > config.maxSpeedKmh) continue;
+    if (isRoundTripSpike(previous, point, next, config.anomalyMinKm)) continue;
+    kept.push(point);
   }
+  kept.push(points[points.length - 1]);
   return kept;
 }
 
