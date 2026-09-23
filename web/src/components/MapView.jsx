@@ -34,6 +34,7 @@ const STAY_COLOR = '#7c3aed';
 const PLACES_MIN_ZOOM = 17;
 const PLACES_RADIUS_M = 150;
 const MAX_PLACE_MARKERS = 80;
+const MAX_SEGMENT_LABELS = 120;
 
 const BASEMAP_STORAGE_KEY = 'geoloc.basemap';
 
@@ -169,6 +170,77 @@ function formatDuration(ms) {
   if (hours && rest) return `${hours} h ${String(rest).padStart(2, '0')}`;
   if (hours) return `${hours} h`;
   return `${rest} min`;
+}
+
+function formatDistance(km) {
+  if (km < 1) return `${Math.round(km * 1000)} m`;
+  return `${km.toLocaleString('fr-FR', { maximumFractionDigits: km < 10 ? 1 : 0 })} km`;
+}
+
+function segmentMidpoint(chain) {
+  const distances = [];
+  let total = 0;
+  for (let i = 1; i < chain.length; i += 1) {
+    const distance = haversineKm(
+      chain[i - 1].latitude,
+      chain[i - 1].longitude,
+      chain[i].latitude,
+      chain[i].longitude,
+    );
+    distances.push(distance);
+    total += distance;
+  }
+  let target = total / 2;
+  for (let i = 0; i < distances.length; i += 1) {
+    const distance = distances[i];
+    if (target <= distance) {
+      const ratio = distance > 0 ? target / distance : 0;
+      const from = chain[i];
+      const to = chain[i + 1];
+      return {
+        latitude: from.latitude + (to.latitude - from.latitude) * ratio,
+        longitude: from.longitude + (to.longitude - from.longitude) * ratio,
+        distanceKm: total,
+      };
+    }
+    target -= distance;
+  }
+  const last = chain[chain.length - 1];
+  return { latitude: last.latitude, longitude: last.longitude, distanceKm: total };
+}
+
+function buildSegments(track) {
+  const stays = track.stays || [];
+  const points = track.points || [];
+  if (stays.length < 2) return [];
+  const segments = [];
+  for (let i = 0; i < stays.length - 1; i += 1) {
+    const from = stays[i];
+    const to = stays[i + 1];
+    const startMs = new Date(from.end).getTime();
+    const endMs = new Date(to.start).getTime();
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs - startMs <= 0) continue;
+    const inside = points.filter((point) => {
+      const time = new Date(point.timestamp).getTime();
+      return Number.isFinite(time) && time > startMs && time < endMs;
+    });
+    if (!inside.length) continue;
+    const chain = [
+      { latitude: from.latitude, longitude: from.longitude },
+      ...inside.map((point) => ({ latitude: point.latitude, longitude: point.longitude })),
+      { latitude: to.latitude, longitude: to.longitude },
+    ];
+    const mid = segmentMidpoint(chain);
+    if (mid.distanceKm <= 0) continue;
+    segments.push({
+      index: i,
+      latitude: mid.latitude,
+      longitude: mid.longitude,
+      distanceKm: mid.distanceKm,
+      durationMs: endMs - startMs,
+    });
+  }
+  return segments;
 }
 
 function cleanTrack(points, radiusKm = SPIKE_RADIUS_M / 1000) {
@@ -350,6 +422,15 @@ function arrowIcon(bearing, color) {
   });
 }
 
+function segmentIcon(text, color) {
+  return divIcon({
+    className: 'route-segment',
+    html: `<div class="route-segment-inner" style="border-color:${color}">${text}</div>`,
+    iconSize: [0, 0],
+    iconAnchor: [0, 0],
+  });
+}
+
 export function stayIcon() {
   return divIcon({
     className: 'route-stay',
@@ -421,6 +502,24 @@ export default function MapView({
       ),
     [displayTracks, entities],
   );
+
+  const segmentLabels = useMemo(() => {
+    const labels = [];
+    for (const track of displayTracks) {
+      if (labels.length >= MAX_SEGMENT_LABELS) break;
+      const color = colors[track.entityId] || '#2563eb';
+      for (const segment of buildSegments(track)) {
+        if (labels.length >= MAX_SEGMENT_LABELS) break;
+        labels.push({
+          ...segment,
+          key: `${track.entityId}-segment-${segment.index}`,
+          color,
+          text: `${formatDistance(segment.distanceKm)} · ${formatDuration(segment.durationMs)}`,
+        });
+      }
+    }
+    return labels;
+  }, [displayTracks, colors]);
 
   useEffect(() => {
     if (zoom < PLACES_MIN_ZOOM) return;
@@ -601,6 +700,15 @@ export default function MapView({
             </span>
           </Popup>
         </Marker>
+      ))}
+
+      {segmentLabels.map((segment) => (
+        <Marker
+          key={segment.key}
+          position={[segment.latitude, segment.longitude]}
+          icon={segmentIcon(segment.text, segment.color)}
+          interactive={false}
+        />
       ))}
 
       {placeMarkers.map((place) => (

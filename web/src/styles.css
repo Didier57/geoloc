@@ -491,6 +491,26 @@ select:focus {
   filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.6));
 }
 
+.route-segment {
+  background: transparent;
+  border: none;
+}
+
+.route-segment-inner {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--label);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+  box-shadow: 0 1px 3px var(--shadow-map);
+}
+
 .route-stay {
   background: transparent;
   border: none;
