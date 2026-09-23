@@ -35,6 +35,7 @@ const PLACES_MIN_ZOOM = 17;
 const PLACES_RADIUS_M = 150;
 const MAX_PLACE_MARKERS = 80;
 const MAX_SEGMENT_LABELS = 120;
+const LABEL_MATCH_RADIUS_M = 150;
 
 const BASEMAP_STORAGE_KEY = 'geoloc.basemap';
 
@@ -111,6 +112,19 @@ function ZoomWatcher({ onChange }) {
 
 function coordKey(latitude, longitude) {
   return `${Number(latitude).toFixed(5)},${Number(longitude).toFixed(5)}`;
+}
+
+function findPlaceLabel(labels, latitude, longitude) {
+  let match = null;
+  let bestKm = LABEL_MATCH_RADIUS_M / 1000;
+  for (const label of labels) {
+    const distance = haversineKm(latitude, longitude, label.latitude, label.longitude);
+    if (distance <= bestKm) {
+      match = label;
+      bestKm = distance;
+    }
+  }
+  return match;
 }
 
 function FitBounds({ tracks, entities }) {
@@ -431,6 +445,93 @@ function segmentIcon(text, color) {
   });
 }
 
+function StayLabelEditor({ assigned, placeList, onSave, onClear }) {
+  const [custom, setCustom] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const run = async (action) => {
+    setBusy(true);
+    try {
+      await action();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSelect = (event) => {
+    const id = event.target.value;
+    if (!id) return;
+    const place = (placeList || []).find((item) => String(item.id) === id);
+    if (!place) return;
+    run(() => onSave(place.name, place.id));
+  };
+
+  const handleCustom = () => {
+    const name = custom.trim();
+    if (!name) return;
+    run(() => onSave(name, null)).then(() => setCustom(''));
+  };
+
+  let placeholder = 'Choisir un POI proche…';
+  if (placeList == null) placeholder = 'Chargement des POI…';
+  else if (!placeList.length) placeholder = 'Aucun POI à proximité';
+
+  return (
+    <div className="stay-label-editor">
+      <div className="stay-label-current">
+        {assigned ? (
+          <>
+            <span className="stay-label-name">{assigned.name}</span>
+            <button
+              type="button"
+              className="link danger"
+              onClick={() => run(() => onClear())}
+              disabled={busy}
+            >
+              Retirer
+            </button>
+          </>
+        ) : (
+          <span className="muted">Aucun lieu enregistré</span>
+        )}
+      </div>
+      <select
+        className="stay-label-select"
+        value=""
+        onChange={handleSelect}
+        disabled={busy || !placeList || !placeList.length}
+      >
+        <option value="">{placeholder}</option>
+        {(placeList || []).map((place) => (
+          <option key={place.id} value={String(place.id)}>
+            {place.name}
+          </option>
+        ))}
+      </select>
+      <div className="stay-label-custom">
+        <input
+          type="text"
+          value={custom}
+          placeholder="Nom personnalisé (société)"
+          onChange={(event) => setCustom(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') handleCustom();
+          }}
+          disabled={busy}
+        />
+        <button
+          type="button"
+          className="btn ghost"
+          onClick={handleCustom}
+          disabled={busy || !custom.trim()}
+        >
+          Enregistrer
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function stayIcon() {
   return divIcon({
     className: 'route-stay',
@@ -478,6 +579,15 @@ export default function MapView({
     }
   }, [basemap]);
 
+  const [labels, setLabels] = useState([]);
+
+  useEffect(() => {
+    api
+      .labels()
+      .then(({ labels: list }) => setLabels(Array.isArray(list) ? list : []))
+      .catch(() => {});
+  }, []);
+
   const displayTracks = useMemo(
     () =>
       tracks.map((track) => {
@@ -521,22 +631,53 @@ export default function MapView({
     return labels;
   }, [displayTracks, colors]);
 
+  const ensurePlaces = useCallback((latitude, longitude) => {
+    const key = coordKey(latitude, longitude);
+    if (placesRequested.current.has(key)) return;
+    placesRequested.current.add(key);
+    api
+      .places(latitude, longitude, PLACES_RADIUS_M)
+      .then(({ places: list }) => {
+        setPlaces((prev) => ({ ...prev, [key]: list || [] }));
+      })
+      .catch(() => {
+        setPlaces((prev) => ({ ...prev, [key]: [] }));
+      });
+  }, []);
+
   useEffect(() => {
     if (zoom < PLACES_MIN_ZOOM) return;
-    stays.forEach((stay) => {
-      const key = coordKey(stay.latitude, stay.longitude);
-      if (placesRequested.current.has(key)) return;
-      placesRequested.current.add(key);
-      api
-        .places(stay.latitude, stay.longitude, PLACES_RADIUS_M)
-        .then(({ places: list }) => {
-          setPlaces((prev) => ({ ...prev, [key]: list || [] }));
-        })
-        .catch(() => {
-          setPlaces((prev) => ({ ...prev, [key]: [] }));
+    stays.forEach((stay) => ensurePlaces(stay.latitude, stay.longitude));
+  }, [zoom, stays, ensurePlaces]);
+
+  const saveStayLabel = useCallback(
+    async (stay, name, placeId) => {
+      try {
+        const { labels: list } = await api.saveLabel({
+          latitude: stay.latitude,
+          longitude: stay.longitude,
+          name,
+          placeId,
         });
-    });
-  }, [zoom, stays]);
+        setLabels(Array.isArray(list) ? list : []);
+      } catch (err) {
+        onError?.(err.message);
+      }
+    },
+    [onError],
+  );
+
+  const clearStayLabel = useCallback(
+    async (stay) => {
+      try {
+        const { labels: list } = await api.deleteLabel(stay.latitude, stay.longitude);
+        setLabels(Array.isArray(list) ? list : []);
+      } catch (err) {
+        onError?.(err.message);
+      }
+    },
+    [onError],
+  );
 
   const placeMarkers = [];
   if (zoom >= PLACES_MIN_ZOOM) {
@@ -679,28 +820,48 @@ export default function MapView({
         });
       })}
 
-      {stays.map((stay) => (
-        <Marker
-          key={stay.key}
-          position={[stay.latitude, stay.longitude]}
-          icon={stayIcon()}
-          eventHandlers={{ click: () => loadAddress(stay.key, stay.latitude, stay.longitude) }}
-        >
-          <Popup>
-            <strong>{stay.name}</strong>
-            <br />
-            <span className="popup-stay">Arrêt sur place</span>
-            <br />
-            De {formatDateTime(stay.start)} à {formatDateTime(stay.end)}
-            <br />
-            Durée : {formatDuration(stay.durationMs)}
-            <br />
-            <span className="popup-address">
-              {addresses[stay.key] || 'Cliquez pour voir le lieu'}
-            </span>
-          </Popup>
-        </Marker>
-      ))}
+      {stays.map((stay) => {
+        const assigned = findPlaceLabel(labels, stay.latitude, stay.longitude);
+        const placeList = places[coordKey(stay.latitude, stay.longitude)];
+        return (
+          <Marker
+            key={stay.key}
+            position={[stay.latitude, stay.longitude]}
+            icon={stayIcon()}
+            eventHandlers={{
+              click: () => {
+                loadAddress(stay.key, stay.latitude, stay.longitude);
+                ensurePlaces(stay.latitude, stay.longitude);
+              },
+            }}
+          >
+            {assigned ? (
+              <Tooltip permanent direction="top" offset={[0, -16]} className="stay-label-tooltip">
+                {assigned.name}
+              </Tooltip>
+            ) : null}
+            <Popup>
+              <strong>{stay.name}</strong>
+              <br />
+              <span className="popup-stay">Arrêt sur place</span>
+              <br />
+              De {formatDateTime(stay.start)} à {formatDateTime(stay.end)}
+              <br />
+              Durée : {formatDuration(stay.durationMs)}
+              <br />
+              <span className="popup-address">
+                {addresses[stay.key] || 'Cliquez pour voir le lieu'}
+              </span>
+              <StayLabelEditor
+                assigned={assigned}
+                placeList={placeList}
+                onSave={(name, placeId) => saveStayLabel(stay, name, placeId)}
+                onClear={() => clearStayLabel(stay)}
+              />
+            </Popup>
+          </Marker>
+        );
+      })}
 
       {segmentLabels.map((segment) => (
         <Marker

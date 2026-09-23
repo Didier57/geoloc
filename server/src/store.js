@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { config } from './config.js';
+import { haversineKm } from './motion.js';
 import { hashPassword } from './utils/password.js';
 
 const emptyState = () => ({
@@ -10,6 +11,7 @@ const emptyState = () => ({
   dawarich: null,
   emptyDays: {},
   deletedPoints: {},
+  placeLabels: [],
 });
 
 let state = emptyState();
@@ -180,4 +182,46 @@ export function setDawarichConfig(cfg) {
   state.dawarich = cfg;
   save();
   return state.dawarich;
+}
+
+const LABEL_MATCH_KM = 0.15;
+
+export function listPlaceLabels() {
+  return Array.isArray(state.placeLabels) ? state.placeLabels : [];
+}
+
+export function upsertPlaceLabel({ latitude, longitude, name, placeId }) {
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+  const label = String(name || '').trim();
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || !label) return null;
+  if (!Array.isArray(state.placeLabels)) state.placeLabels = [];
+  const existing = state.placeLabels.find(
+    (item) => haversineKm(item.latitude, item.longitude, lat, lng) <= LABEL_MATCH_KM,
+  );
+  const entry = {
+    latitude: lat,
+    longitude: lng,
+    name: label,
+    placeId: placeId != null ? String(placeId) : null,
+    updatedAt: new Date().toISOString(),
+  };
+  if (existing) {
+    Object.assign(existing, entry);
+  } else {
+    state.placeLabels.push(entry);
+  }
+  save();
+  return listPlaceLabels();
+}
+
+export function removePlaceLabel(latitude, longitude) {
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+  if (!Array.isArray(state.placeLabels)) return [];
+  state.placeLabels = state.placeLabels.filter(
+    (item) => haversineKm(item.latitude, item.longitude, lat, lng) > LABEL_MATCH_KM,
+  );
+  save();
+  return listPlaceLabels();
 }

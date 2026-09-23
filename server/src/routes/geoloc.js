@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAdmin, requireAuth } from '../auth.js';
-import { getHaConfig, markPointDeleted } from '../store.js';
+import { getHaConfig, listPlaceLabels, markPointDeleted, removePlaceLabel, upsertPlaceLabel } from '../store.js';
 import { decryptSecret } from '../utils/crypto.js';
 import { fetchStates, mapTrackableEntities } from '../homeassistant.js';
 import { reverseGeocode } from '../geocode.js';
@@ -81,6 +81,30 @@ router.delete('/point', requireAdmin, (req, res) => {
   const removed = deletePoint(entityId, day, timestamp);
   markPointDeleted(entityId, timestamp);
   res.json({ ok: true, entityId, timestamp, day, removed });
+});
+
+router.get('/labels', (req, res) => {
+  res.json({ labels: listPlaceLabels() });
+});
+
+router.post('/labels', (req, res) => {
+  const { latitude, longitude, name, placeId } = req.body || {};
+  const labels = upsertPlaceLabel({ latitude, longitude, name, placeId });
+  if (!labels) {
+    return res
+      .status(400)
+      .json({ error: 'invalid_label', message: 'Coordonnées ou nom invalides.' });
+  }
+  res.json({ labels });
+});
+
+router.delete('/labels', (req, res) => {
+  const latitude = Number(req.query.lat);
+  const longitude = Number(req.query.lng);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return res.status(400).json({ error: 'invalid_coords', message: 'Coordonnées invalides.' });
+  }
+  res.json({ labels: removePlaceLabel(latitude, longitude) });
 });
 
 router.get('/reverse', async (req, res) => {
