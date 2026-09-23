@@ -7,7 +7,7 @@ import {
 import { fetchHistory } from './homeassistant.js';
 import { hasDay, readDay, saveDay } from './history.js';
 import { dayEnd, dayStart, todayString } from './dates.js';
-import { classifyTrack } from './motion.js';
+import { classifyTrack, filterAnomalies } from './motion.js';
 
 export async function collectTracks(haConfig, entityIds, days) {
   const today = todayString();
@@ -86,7 +86,7 @@ export async function collectTracks(haConfig, entityIds, days) {
     const sorted = [...merged.values()].sort(
       (a, b) => new Date(a.timestamp) - new Date(b.timestamp),
     );
-    return { entityId: id, points: classifyTrack(sorted) };
+    return { entityId: id, points: classifyTrack(filterAnomalies(sorted)) };
   });
 
   const total = tracks.reduce((sum, track) => sum + track.points.length, 0);

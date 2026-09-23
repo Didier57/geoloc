@@ -32,6 +32,34 @@ export function classifySpeed(speedKmh) {
   return 'drive';
 }
 
+export function impliedSpeedKmh(a, b) {
+  const from = a?.timestamp ? new Date(a.timestamp).getTime() : NaN;
+  const to = b?.timestamp ? new Date(b.timestamp).getTime() : NaN;
+  if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return null;
+  const distanceKm = haversineKm(a.latitude, a.longitude, b.latitude, b.longitude);
+  return distanceKm / ((to - from) / 3600000);
+}
+
+export function filterAnomalies(points) {
+  if (!Array.isArray(points) || points.length < 2) return Array.isArray(points) ? points : [];
+  const kept = [points[0]];
+  for (let i = 1; i < points.length; i += 1) {
+    const point = points[i];
+    const previous = kept[kept.length - 1];
+    const distanceKm = haversineKm(
+      previous.latitude,
+      previous.longitude,
+      point.latitude,
+      point.longitude,
+    );
+    const speed = impliedSpeedKmh(previous, point);
+    const impossible =
+      distanceKm >= config.anomalyMinKm && speed != null && speed > config.maxSpeedKmh;
+    if (!impossible) kept.push(point);
+  }
+  return kept;
+}
+
 export function classifyTrack(points) {
   if (!Array.isArray(points)) return [];
   const result = [];
