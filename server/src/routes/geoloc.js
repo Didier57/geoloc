@@ -1,12 +1,21 @@
 import { Router } from 'express';
 import { requireAdmin, requireAuth } from '../auth.js';
-import { getHaConfig, listPlaceLabels, markPointDeleted, removePlaceLabel, upsertPlaceLabel } from '../store.js';
+import {
+  getHaConfig,
+  hasEmptyDay,
+  deletedPointsFor,
+  listPlaceLabels,
+  markPointDeleted,
+  removePlaceLabel,
+  upsertPlaceLabel,
+} from '../store.js';
 import { decryptSecret } from '../utils/crypto.js';
 import { fetchStates, mapTrackableEntities } from '../homeassistant.js';
 import { reverseGeocode } from '../geocode.js';
 import { nearbyPlaces } from '../places.js';
-import { deletePoint } from '../history.js';
-import { listDays, toDayString } from '../dates.js';
+import { deletePoint, listArchives, readDay } from '../history.js';
+import { dayEnd, dayStart, listDays, todayString, toDayString } from '../dates.js';
+import { config } from '../config.js';
 import { runArchive } from '../archive.js';
 import { collectTracks } from '../tracks.js';
 
@@ -81,6 +90,33 @@ router.delete('/point', requireAdmin, (req, res) => {
   const removed = deletePoint(entityId, day, timestamp);
   markPointDeleted(entityId, timestamp);
   res.json({ ok: true, entityId, timestamp, day, removed });
+});
+
+router.get('/diag', requireAdmin, (req, res) => {
+  const wanted = String(req.query.entityId || '').trim();
+  const archives = listArchives().filter((item) => !wanted || item.entityId === wanted);
+  const report = archives.map(({ entityId, days }) => ({
+    entityId,
+    days: days.slice(-120).map((day) => {
+      const raw = readDay(entityId, day);
+      const startMs = dayStart(day).getTime();
+      const endMs = dayEnd(day).getTime();
+      let inWindow = 0;
+      let badTime = 0;
+      for (const point of raw) {
+        const time = point?.timestamp ? new Date(point.timestamp).getTime() : NaN;
+        if (!Number.isFinite(time)) badTime += 1;
+        else if (time >= startMs && time <= endMs) inWindow += 1;
+      }
+      return { day, raw: raw.length, inWindow, badTime, empty: hasEmptyDay(entityId, day) };
+    }),
+  }));
+  res.json({
+    today: todayString(),
+    timeZone: config.timeZone,
+    deletedPoints: wanted ? deletedPointsFor(wanted).length : null,
+    archives: report,
+  });
 });
 
 router.get('/labels', (req, res) => {
