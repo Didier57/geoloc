@@ -19,7 +19,7 @@ export const config = {
   archiveBackfillDays: Math.max(1, Number(process.env.ARCHIVE_BACKFILL_DAYS || 8)),
   stillMaxKmh: Math.max(0, Number(process.env.STILL_MAX_KMH || 2)),
   walkMaxKmh: Math.max(0, Number(process.env.WALK_MAX_KMH || 8)),
-  maxSpeedKmh: Math.max(0, Number(process.env.MAX_SPEED_KMH || 250)),
+  maxSpeedKmh: Math.max(0, Number(process.env.MAX_SPEED_KMH || 130)),
   anomalyMinKm: Math.max(0, Number(process.env.ANOMALY_MIN_KM || 1)),
   admin: {
     username: process.env.ADMIN_USERNAME || 'admin',
