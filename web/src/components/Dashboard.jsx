@@ -8,7 +8,6 @@ import Settings from './Settings.jsx';
 import Users from './Users.jsx';
 import Backup from './Backup.jsx';
 import GoogleImport from './GoogleImport.jsx';
-import Dawarich from './Dawarich.jsx';
 
 const PALETTE = [
   '#e6194b',
@@ -55,7 +54,6 @@ export default function Dashboard({ user, onLogout }) {
   const [showUsers, setShowUsers] = useState(false);
   const [showBackup, setShowBackup] = useState(false);
   const [showImport, setShowImport] = useState(false);
-  const [showDawarich, setShowDawarich] = useState(false);
   const autoSyncDone = useRef(false);
 
   const loadConfig = useCallback(async () => {
@@ -240,11 +238,6 @@ export default function Dashboard({ user, onLogout }) {
             Import Google
           </button>
         )}
-        {isAdmin && (
-          <button className="btn ghost" onClick={() => setShowDawarich(true)}>
-            Dawarich
-          </button>
-        )}
         <button className="btn ghost" onClick={onLogout}>
           Déconnexion
         </button>
@@ -339,7 +332,6 @@ export default function Dashboard({ user, onLogout }) {
           }}
         />
       )}
-      {showDawarich && <Dawarich currentEntityId={selectedIds[0]} onClose={() => setShowDawarich(false)} />}
     </div>
   );
 }

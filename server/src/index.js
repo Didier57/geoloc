@@ -11,7 +11,6 @@ import configRoutes from './routes/config.js';
 import geolocRoutes from './routes/geoloc.js';
 import backupRoutes from './routes/backup.js';
 import importRoutes from './routes/import.js';
-import dawarichRoutes from './routes/dawarich.js';
 
 const app = express();
 
@@ -25,7 +24,6 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date().t
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/config/ha', configRoutes);
-app.use('/api/dawarich', dawarichRoutes);
 app.use('/api/geoloc', geolocRoutes);
 
 app.use((req, res) => res.status(404).json({ error: 'not_found' }));

@@ -46,12 +46,6 @@ export const api = {
   saveHaEntities: (entities) =>
     request('/api/config/ha/entities', { method: 'POST', body: JSON.stringify({ entities }) }),
 
-  dawarichConfig: () => request('/api/dawarich'),
-  testDawarich: (payload) => request('/api/dawarich/test', { method: 'POST', body: JSON.stringify(payload) }),
-  saveDawarich: (payload) => request('/api/dawarich', { method: 'POST', body: JSON.stringify(payload) }),
-  exportDawarich: (payload) =>
-    request('/api/dawarich/export', { method: 'POST', body: JSON.stringify(payload) }),
-
   entities: (all) => request(`/api/geoloc/entities${all ? '?all=1' : ''}`),
   archive: (force) =>
     request('/api/geoloc/archive', { method: 'POST', body: JSON.stringify({ force: !!force }) }),

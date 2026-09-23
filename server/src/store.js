@@ -8,7 +8,6 @@ const emptyState = () => ({
   users: [],
   nextUserId: 1,
   ha: null,
-  dawarich: null,
   emptyDays: {},
   deletedPoints: {},
   placeLabels: [],
@@ -172,16 +171,6 @@ export function setHaEntities(entityIds) {
   state.ha.entitiesUpdatedAt = new Date().toISOString();
   save();
   return state.ha.entities;
-}
-
-export function getDawarichConfig() {
-  return state.dawarich;
-}
-
-export function setDawarichConfig(cfg) {
-  state.dawarich = cfg;
-  save();
-  return state.dawarich;
 }
 
 const LABEL_MATCH_KM = 0.15;
