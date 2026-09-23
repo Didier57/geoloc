@@ -407,6 +407,21 @@ function buildRuns(points, fallbackColor) {
   return runs;
 }
 
+function distancePointToSegmentKm(point, a, b) {
+  const scaleX = 111.32 * Math.max(Math.cos((point.latitude * Math.PI) / 180), 0.01);
+  const scaleY = 111.32;
+  const x1 = (a.longitude - point.longitude) * scaleX;
+  const y1 = (a.latitude - point.latitude) * scaleY;
+  const x2 = (b.longitude - point.longitude) * scaleX;
+  const y2 = (b.latitude - point.latitude) * scaleY;
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const lengthSq = dx * dx + dy * dy;
+  let t = lengthSq ? -(x1 * dx + y1 * dy) / lengthSq : 0;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(x1 + t * dx, y1 + t * dy);
+}
+
 function nearestSegmentIndex(points, latitude, longitude) {
   const scaleX = 111.32 * Math.max(Math.cos((latitude * Math.PI) / 180), 0.01);
   const scaleY = 111.32;
@@ -761,12 +776,17 @@ export default function MapView({
       const from = run.points[index];
       const to = run.points[index + 1];
       if (!from?.timestamp || !to?.timestamp) return;
+      const prev = run.points[index - 1] || null;
+      const next = run.points[index + 2] || null;
       const fromMs = new Date(from.timestamp).getTime();
       const toMs = new Date(to.timestamp).getTime();
+      const scoreFrom = prev ? distancePointToSegmentKm(from, prev, to) : 0;
+      const scoreTo = next ? distancePointToSegmentKm(to, from, next) : 0;
       setLineTarget({
         entityId: track.entityId,
         from,
         to,
+        suggested: scoreTo >= scoreFrom ? to : from,
         distanceKm: haversineKm(from.latitude, from.longitude, to.latitude, to.longitude),
         durationMs: Number.isFinite(fromMs) && Number.isFinite(toMs) ? toMs - fromMs : 0,
       });
@@ -1026,18 +1046,29 @@ export default function MapView({
             <button
               type="button"
               className="btn danger"
+              onClick={() => removeLinePoint(lineTarget.suggested)}
+              disabled={!!removing}
+            >
+              Supprimer la ligne ({formatTime(lineTarget.suggested.timestamp)})
+            </button>
+          </div>
+          <div className="line-actions-times">Retirer plutôt un point précis :</div>
+          <div className="line-actions-buttons">
+            <button
+              type="button"
+              className="btn ghost"
               onClick={() => removeLinePoint(lineTarget.from)}
               disabled={!!removing}
             >
-              Supprimer le départ
+              Départ {formatTime(lineTarget.from.timestamp)}
             </button>
             <button
               type="button"
-              className="btn danger"
+              className="btn ghost"
               onClick={() => removeLinePoint(lineTarget.to)}
               disabled={!!removing}
             >
-              Supprimer l’arrivée
+              Arrivée {formatTime(lineTarget.to.timestamp)}
             </button>
             <button type="button" className="btn ghost" onClick={() => setLineTarget(null)}>
               Annuler
