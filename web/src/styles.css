@@ -463,6 +463,74 @@ select:focus {
   display: inline-block;
 }
 
+.stats-panel {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 72%;
+  overflow: auto;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 4px 14px var(--shadow-map);
+  font-size: 12px;
+  color: var(--label);
+  min-width: 240px;
+}
+
+.stats-item + .stats-item {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.stats-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 2px 12px;
+}
+
+.stats-grid span {
+  color: var(--muted-2);
+}
+
+.stats-grid strong {
+  text-align: right;
+}
+
+.stats-modes {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 8px;
+  color: var(--muted-2);
+}
+
+.stats-modes span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stats-modes i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
 .basemap-control {
   position: absolute;
   top: 10px;

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { useTheme } from '../theme.js';
 import { MODE_COLORS, MODE_LABELS, MODE_ORDER } from '../motion.js';
+import { computeTrackStats, formatDistanceKm, formatDurationMs } from '../stats.js';
 import Filters from './Filters.jsx';
 import MapView from './MapView.jsx';
 import Settings from './Settings.jsx';
@@ -59,6 +60,7 @@ export default function Dashboard({ user, onLogout }) {
   const [showImport, setShowImport] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
   const [syncingAll, setSyncingAll] = useState(false);
+  const [showStats, setShowStats] = useState(false);
   const autoSyncDone = useRef(false);
 
   const loadConfig = useCallback(async () => {
@@ -155,6 +157,23 @@ export default function Dashboard({ user, onLogout }) {
     });
     return map;
   }, [entities]);
+
+  const statsList = useMemo(() => {
+    const names = {};
+    entities.forEach((entity) => {
+      names[entity.entityId] = entity.name;
+    });
+    return tracks.map((track) =>
+      Object.assign(
+        {
+          entityId: track.entityId,
+          name: names[track.entityId] || track.name || track.entityId,
+          color: colors[track.entityId] || '#2563eb',
+        },
+        computeTrackStats(track),
+      ),
+    );
+  }, [tracks, entities, colors]);
 
   function selectEntity(id) {
     const next = selectedIds.includes(id)
@@ -352,6 +371,8 @@ export default function Dashboard({ user, onLogout }) {
             date={date}
             onDate={setDate}
             onShiftDay={shiftDay}
+            showStats={showStats}
+            onToggleStats={() => setShowStats((value) => !value)}
           />
           {error && <div className="error banner">{error}</div>}
           {!loading && selectedIds.length > 0 && !hasPoints && (
@@ -381,6 +402,43 @@ export default function Dashboard({ user, onLogout }) {
               </span>
             </div>
             {loading && <div className="map-loading">Chargement…</div>}
+            {showStats && statsList.length > 0 && (
+              <div className="stats-panel">
+                {statsList.map((item) => (
+                  <div key={item.entityId} className="stats-item">
+                    <div className="stats-head">
+                      <span className="dot" style={{ background: item.color }} />
+                      {item.name}
+                    </div>
+                    <div className="stats-grid">
+                      <span>Distance</span>
+                      <strong>{formatDistanceKm(item.distanceKm)}</strong>
+                      <span>Durée</span>
+                      <strong>{formatDurationMs(item.durationMs)}</strong>
+                      <span>Vitesse moyenne</span>
+                      <strong>{Math.round(item.averageSpeedKmh)} km/h</strong>
+                      <span>Vitesse max</span>
+                      <strong>{Math.round(item.maxSpeedKmh)} km/h</strong>
+                      <span>En mouvement</span>
+                      <strong>{formatDurationMs(item.movingMs)}</strong>
+                      <span>Immobile</span>
+                      <strong>{formatDurationMs(item.stillMs)}</strong>
+                    </div>
+                    <div className="stats-modes">
+                      {MODE_ORDER.map((mode) =>
+                        item.byMode[mode]?.distanceKm > 0 ? (
+                          <span key={mode}>
+                            <i style={{ background: MODE_COLORS[mode] }} />
+                            {MODE_LABELS[mode]} : {formatDistanceKm(item.byMode[mode].distanceKm)} ·{' '}
+                            {formatDurationMs(item.byMode[mode].durationMs)}
+                          </span>
+                        ) : null,
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </>
       )}
