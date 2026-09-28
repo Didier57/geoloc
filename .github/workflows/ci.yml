@@ -21,8 +21,16 @@ jobs:
           npm install
           npm run build
 
+      - name: Test frontend
+        working-directory: web
+        run: npm test
+
       - name: Check backend
         working-directory: server
         run: |
           npm install
           for f in $(find src -name '*.js'); do node --check "$f"; done
+
+      - name: Test backend
+        working-directory: server
+        run: npm test
