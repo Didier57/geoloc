@@ -12,6 +12,7 @@ import {
 } from 'react-leaflet';
 import { divIcon } from 'leaflet';
 import { api } from '../api.js';
+import { downloadText, toGPX, toGeoJSON, toKML } from '../exporters.js';
 import {
   bearingDegrees,
   detectStays,
@@ -635,6 +636,7 @@ export default function MapView({
   const placesRequested = useRef(new Set());
   const [basemap, setBasemap] = useState(readStoredBasemap);
   const [basemapOpen, setBasemapOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
 
   const basemapId = basemap || 'osm';
   const activeBasemap = BASEMAPS.find((item) => item.id === basemapId) || BASEMAPS[0];
@@ -747,6 +749,29 @@ export default function MapView({
       }
     },
     [onError],
+  );
+
+  const handleExport = useCallback(
+    (format) => {
+      setExportOpen(false);
+      if (!displayTracks.length) return;
+      const first = displayTracks.flatMap((track) => track.points)[0];
+      const day = first?.timestamp
+        ? new Date(first.timestamp).toISOString().slice(0, 10)
+        : 'export';
+      if (format === 'geojson') {
+        downloadText(`geoloc-${day}.geojson`, 'application/geo+json', toGeoJSON(displayTracks));
+      } else if (format === 'gpx') {
+        downloadText(`geoloc-${day}.gpx`, 'application/gpx+xml', toGPX(displayTracks));
+      } else {
+        downloadText(
+          `geoloc-${day}.kml`,
+          'application/vnd.google-earth.kml+xml',
+          toKML(displayTracks),
+        );
+      }
+    },
+    [displayTracks],
   );
 
   const placeMarkers = [];
@@ -1057,6 +1082,38 @@ export default function MapView({
                 {item.label}
               </button>
             ))}
+          </div>
+        )}
+      </div>
+
+      <div className="export-control">
+        <button
+          type="button"
+          className="basemap-toggle"
+          onClick={() => setExportOpen((open) => !open)}
+          disabled={!displayTracks.length}
+          title="Exporter la trace"
+          aria-expanded={exportOpen}
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+            <path
+              d="M12 3a1 1 0 0 1 1 1v8.6l2.3-2.3a1 1 0 0 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L11 12.6V4a1 1 0 0 1 1-1zM5 19a1 1 0 0 1 1-1h12a1 1 0 1 1 0 2H6a1 1 0 0 1-1-1z"
+              fill="currentColor"
+            />
+          </svg>
+          <span>Exporter</span>
+        </button>
+        {exportOpen && (
+          <div className="basemap-menu">
+            <button type="button" className="basemap-item" onClick={() => handleExport('gpx')}>
+              GPX
+            </button>
+            <button type="button" className="basemap-item" onClick={() => handleExport('kml')}>
+              KML
+            </button>
+            <button type="button" className="basemap-item" onClick={() => handleExport('geojson')}>
+              GeoJSON
+            </button>
           </div>
         )}
       </div>
