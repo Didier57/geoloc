@@ -1,0 +1,9 @@
+{
+  "name": "geoloc-shared",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./motion.js": "./src/motion.js"
+  }
+}

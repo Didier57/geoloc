@@ -1,8 +1,9 @@
 FROM node:22-alpine AS build
 WORKDIR /app
-COPY package*.json ./
+COPY shared ./shared
+COPY web/package*.json ./
 RUN npm install
-COPY . .
+COPY web .
 RUN npm run build
 
 FROM nginx:1.27-alpine
