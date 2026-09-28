@@ -41,11 +41,18 @@ app.use((err, req, res, next) => {
   return res.status(err.status || 500).json({ error: 'server_error', message: err.message });
 });
 
-migrateStateFromJson();
-migrateFromJson();
-ensureAdmin();
-startArchiver();
-
 app.listen(config.port, () => {
   console.log(`[server] à l'écoute sur le port ${config.port}`);
+  try {
+    migrateStateFromJson();
+  } catch (err) {
+    console.error(`[db] migration état échouée : ${err.message}`);
+  }
+  try {
+    migrateFromJson();
+  } catch (err) {
+    console.error(`[history] migration historique échouée : ${err.message}`);
+  }
+  ensureAdmin();
+  startArchiver();
 });

@@ -7,7 +7,11 @@ const dir = dirname(config.dbFile);
 if (dir && dir !== '.' && !existsSync(dir)) mkdirSync(dir, { recursive: true });
 
 export const db = new DatabaseSync(config.dbFile);
-db.exec('PRAGMA journal_mode = WAL;');
+try {
+  db.exec('PRAGMA journal_mode = WAL;');
+} catch (err) {
+  console.warn(`[db] WAL indisponible, mode par défaut : ${err.message}`);
+}
 db.exec('PRAGMA foreign_keys = ON;');
 
 db.exec(`

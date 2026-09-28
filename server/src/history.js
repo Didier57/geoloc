@@ -161,23 +161,46 @@ export function migrateFromJson() {
     db.prepare("INSERT INTO settings (key, value) VALUES ('migrated_json', 'true')").run();
     return { migrated: false };
   }
+  const insert = db.prepare(
+    'INSERT OR IGNORE INTO points (entity_id, day, timestamp, latitude, longitude, data) VALUES (?, ?, ?, ?, ?, ?)',
+  );
   let days = 0;
-  for (const dirName of entities) {
-    let files = [];
-    try {
-      files = fs.readdirSync(path.join(DIR, dirName));
-    } catch {
-      files = [];
+  db.exec('BEGIN');
+  try {
+    for (const dirName of entities) {
+      let files = [];
+      try {
+        files = fs.readdirSync(path.join(DIR, dirName));
+      } catch {
+        files = [];
+      }
+      for (const file of files) {
+        if (!file.endsWith('.json')) continue;
+        const day = file.slice(0, -5);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) continue;
+        const points = readJsonDay(dirName, day);
+        let inserted = false;
+        for (const point of points) {
+          const normalized = normalizePoint(point);
+          if (!normalized) continue;
+          insert.run(
+            dirName,
+            day,
+            normalized.timestamp,
+            normalized.latitude,
+            normalized.longitude,
+            JSON.stringify(point),
+          );
+          inserted = true;
+        }
+        if (inserted) days += 1;
+      }
     }
-    for (const file of files) {
-      if (!file.endsWith('.json')) continue;
-      const day = file.slice(0, -5);
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) continue;
-      const points = readJsonDay(dirName, day);
-      if (points.length === 0) continue;
-      saveDay(dirName, day, points);
-      days += 1;
-    }
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    console.error(`[history] migration JSON -> SQLite échouée : ${err.message}`);
+    return { migrated: false };
   }
   db.prepare("INSERT INTO settings (key, value) VALUES ('migrated_json', 'true')").run();
   if (days > 0) console.log(`[history] migration JSON -> SQLite : ${days} jour(s)`);
