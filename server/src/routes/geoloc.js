@@ -1,12 +1,14 @@
 import { Router } from 'express';
 import { requireAdmin, requireAuth } from '../auth.js';
 import {
+  getFilters,
   getHaConfig,
   hasEmptyDay,
   deletedPointsFor,
   listPlaceLabels,
   markPointDeleted,
   removePlaceLabel,
+  setFilters,
   upsertPlaceLabel,
 } from '../store.js';
 import { decryptSecret } from '../utils/crypto.js';
@@ -64,9 +66,22 @@ router.get('/tracks', requireConfig, async (req, res) => {
   const to = req.query.to || from;
 
   const days = listDays(from, to);
-  const { tracks, source, haError } = await collectTracks(req.ha, entityIds, days);
+  const { tracks, source, haError, removed } = await collectTracks(req.ha, entityIds, days);
 
-  res.json({ tracks, source, haError });
+  res.json({ tracks, source, haError, removed });
+});
+
+const FILTER_DEFAULTS = {
+  maxSpeedKmh: config.maxSpeedKmh,
+  anomalyMinKm: config.anomalyMinKm,
+};
+
+router.get('/filters', (req, res) => {
+  res.json({ filters: getFilters() || FILTER_DEFAULTS, defaults: FILTER_DEFAULTS });
+});
+
+router.post('/filters', requireAdmin, (req, res) => {
+  res.json({ filters: setFilters(req.body || {}), defaults: FILTER_DEFAULTS });
 });
 
 router.post('/archive', requireConfig, async (req, res) => {

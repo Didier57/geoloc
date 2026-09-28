@@ -9,6 +9,7 @@ import Settings from './Settings.jsx';
 import Users from './Users.jsx';
 import Backup from './Backup.jsx';
 import GoogleImport from './GoogleImport.jsx';
+import FilterSettings from './FilterSettings.jsx';
 
 const PALETTE = [
   '#e6194b',
@@ -58,6 +59,8 @@ export default function Dashboard({ user, onLogout }) {
   const [showUsers, setShowUsers] = useState(false);
   const [showBackup, setShowBackup] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [showFilterSettings, setShowFilterSettings] = useState(false);
+  const [removed, setRemoved] = useState(0);
   const [adminOpen, setAdminOpen] = useState(false);
   const [syncingAll, setSyncingAll] = useState(false);
   const [showStats, setShowStats] = useState(false);
@@ -119,6 +122,7 @@ export default function Dashboard({ user, onLogout }) {
     if (!config?.configured || selectedIds.length === 0) {
       setTracks([]);
       setSource('none');
+      setRemoved(0);
       return;
     }
     setLoading(true);
@@ -131,6 +135,7 @@ export default function Dashboard({ user, onLogout }) {
       );
       setTracks(data.tracks || []);
       setSource(data.source || 'none');
+      setRemoved(data.removed || 0);
       if (data.haError) setError(data.haError);
     } catch (err) {
       setError(err.message);
@@ -330,6 +335,15 @@ export default function Dashboard({ user, onLogout }) {
                     className="menu-item"
                     onClick={() => {
                       setAdminOpen(false);
+                      setShowFilterSettings(true);
+                    }}
+                  >
+                    Réglages du filtre
+                  </button>
+                  <button
+                    className="menu-item"
+                    onClick={() => {
+                      setAdminOpen(false);
                       handleSyncAll();
                     }}
                     disabled={syncingAll}
@@ -400,6 +414,9 @@ export default function Dashboard({ user, onLogout }) {
                 <i className="legend-stay" />
                 Arrêt (≤ 200 m)
               </span>
+              {removed > 0 && (
+                <span className="legend-filter">{removed} point(s) écarté(s)</span>
+              )}
             </div>
             {loading && <div className="map-loading">Chargement…</div>}
             {showStats && statsList.length > 0 && (
@@ -473,6 +490,12 @@ export default function Dashboard({ user, onLogout }) {
             loadEntities();
             loadTracks();
           }}
+        />
+      )}
+      {showFilterSettings && (
+        <FilterSettings
+          onClose={() => setShowFilterSettings(false)}
+          onSaved={loadTracks}
         />
       )}
     </div>

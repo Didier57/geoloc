@@ -1,4 +1,5 @@
 import { classifyTrack, filterAnomalies } from './motion.js';
+import { getFilters } from './store.js';
 
 export class HomeAssistantError extends Error {
   constructor(message, status) {
@@ -113,7 +114,7 @@ export async function fetchHistory(cfg, entityIds, startIso, endIso) {
     tracks.push({
       entityId: first.entity_id,
       name: first.attributes?.friendly_name || first.entity_id,
-      points: classifyTrack(filterAnomalies(points)),
+      points: classifyTrack(filterAnomalies(points, getFilters() || {})),
     });
   }
 

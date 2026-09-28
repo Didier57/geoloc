@@ -60,6 +60,9 @@ export const api = {
   reverse: (lat, lng) => request(`/api/geoloc/reverse?lat=${lat}&lng=${lng}`),
   places: (lat, lng, radius) =>
     request(`/api/geoloc/places?lat=${lat}&lng=${lng}&radius=${radius || 150}`),
+  filters: () => request('/api/geoloc/filters'),
+  saveFilters: (payload) =>
+    request('/api/geoloc/filters', { method: 'POST', body: JSON.stringify(payload) }),
   labels: () => request('/api/geoloc/labels'),
   saveLabel: (payload) => request('/api/geoloc/labels', { method: 'POST', body: JSON.stringify(payload) }),
   deleteLabel: (lat, lng) => request(`/api/geoloc/labels?lat=${lat}&lng=${lng}`, { method: 'DELETE' }),

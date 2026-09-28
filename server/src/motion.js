@@ -58,8 +58,12 @@ function isRoundTripSpike(previous, current, next, minKm) {
   return dGap < Math.min(dPrev, dNext) * 0.5;
 }
 
-export function filterAnomalies(points) {
+export function filterAnomalies(points, options = {}) {
   if (!Array.isArray(points) || points.length < 2) return Array.isArray(points) ? points.slice() : [];
+  const maxSpeedKmh =
+    Number(options.maxSpeedKmh) > 0 ? Number(options.maxSpeedKmh) : config.maxSpeedKmh;
+  const anomalyMinKm =
+    Number(options.anomalyMinKm) > 0 ? Number(options.anomalyMinKm) : config.anomalyMinKm;
   const kept = [points[0]];
   for (let i = 1; i < points.length - 1; i += 1) {
     const point = points[i];
@@ -68,10 +72,10 @@ export function filterAnomalies(points) {
     const raw = points[i - 1];
     const distanceKm = haversineKm(raw.latitude, raw.longitude, point.latitude, point.longitude);
     const localSpeed = impliedSpeedKmh(raw, point);
-    if (distanceKm >= config.anomalyMinKm && localSpeed != null && localSpeed > config.maxSpeedKmh) {
+    if (distanceKm >= anomalyMinKm && localSpeed != null && localSpeed > maxSpeedKmh) {
       continue;
     }
-    if (isRoundTripSpike(previous, point, next, config.anomalyMinKm)) continue;
+    if (isRoundTripSpike(previous, point, next, anomalyMinKm)) continue;
     kept.push(point);
   }
   kept.push(points[points.length - 1]);

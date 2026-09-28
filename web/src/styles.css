@@ -531,6 +531,11 @@ select:focus {
   display: inline-block;
 }
 
+.legend-filter {
+  opacity: 0.75;
+  font-style: italic;
+}
+
 .timeline {
   position: absolute;
   bottom: 10px;

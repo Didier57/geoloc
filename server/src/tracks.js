@@ -1,6 +1,7 @@
 import {
   clearEmptyDay,
   deletedPointsFor,
+  getFilters,
   hasEmptyDay,
   markEmptyDay,
 } from './store.js';
@@ -75,6 +76,8 @@ export async function collectTracks(haConfig, entityIds, days) {
     }
   }
 
+  const filters = getFilters() || {};
+  let removed = 0;
   const tracks = entityIds.map((id) => {
     const merged = new Map();
     const deleted = new Set(deletedPointsFor(id));
@@ -86,12 +89,14 @@ export async function collectTracks(haConfig, entityIds, days) {
     const sorted = [...merged.values()].sort(
       (a, b) => new Date(a.timestamp) - new Date(b.timestamp),
     );
-    return { entityId: id, points: classifyTrack(filterAnomalies(sorted)) };
+    const filtered = filterAnomalies(sorted, filters);
+    removed += sorted.length - filtered.length;
+    return { entityId: id, points: classifyTrack(filtered) };
   });
 
   const total = tracks.reduce((sum, track) => sum + track.points.length, 0);
   let source = 'none';
   if (total > 0) source = fromDb && fromHa ? 'mixed' : fromHa ? 'ha' : 'db';
 
-  return { tracks, source, haError };
+  return { tracks, source, haError, removed };
 }

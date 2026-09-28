@@ -1,5 +1,5 @@
 import { config } from './config.js';
-import { getHaConfig, hasEmptyDay, markEmptyDay, clearEmptyDay } from './store.js';
+import { getHaConfig, getFilters, hasEmptyDay, markEmptyDay, clearEmptyDay } from './store.js';
 import { decryptSecret } from './utils/crypto.js';
 import { fetchHistory } from './homeassistant.js';
 import { dayStart, dayEnd, shiftDay, todayString } from './dates.js';
@@ -71,7 +71,7 @@ export function cleanArchives() {
     for (const day of dayList) {
       const points = readDay(entityId, day);
       if (points.length === 0) continue;
-      const cleaned = filterAnomalies(points);
+      const cleaned = filterAnomalies(points, getFilters() || {});
       if (cleaned.length === points.length) continue;
       overwriteDay(entityId, day, cleaned);
       removed += points.length - cleaned.length;

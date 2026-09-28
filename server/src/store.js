@@ -11,6 +11,7 @@ const emptyState = () => ({
   emptyDays: {},
   deletedPoints: {},
   placeLabels: [],
+  filters: null,
 });
 
 let state = emptyState();
@@ -176,6 +177,23 @@ export function setHaEntities(entityIds) {
   state.ha.entitiesUpdatedAt = new Date().toISOString();
   save();
   return state.ha.entities;
+}
+
+export function getFilters() {
+  return state.filters || null;
+}
+
+export function setFilters(patch) {
+  const maxSpeedKmh = Number(patch?.maxSpeedKmh);
+  const anomalyMinKm = Number(patch?.anomalyMinKm);
+  state.filters = {
+    maxSpeedKmh:
+      Number.isFinite(maxSpeedKmh) && maxSpeedKmh > 0 ? maxSpeedKmh : config.maxSpeedKmh,
+    anomalyMinKm:
+      Number.isFinite(anomalyMinKm) && anomalyMinKm > 0 ? anomalyMinKm : config.anomalyMinKm,
+  };
+  save();
+  return state.filters;
 }
 
 const LABEL_MATCH_KM = 0.15;
