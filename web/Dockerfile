@@ -3,7 +3,7 @@ WORKDIR /app
 COPY shared ./shared
 COPY web/package*.json ./
 RUN npm install
-RUN mkdir -p node_modules/geoloc-shared && cp -r shared/* node_modules/geoloc-shared/
+RUN mkdir -p node_modules && rm -rf node_modules/geoloc-shared && cp -r shared node_modules/geoloc-shared
 COPY web .
 RUN npm run build
 
