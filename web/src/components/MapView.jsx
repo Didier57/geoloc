@@ -637,6 +637,8 @@ export default function MapView({
   const [basemap, setBasemap] = useState(readStoredBasemap);
   const [basemapOpen, setBasemapOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [cursor, setCursor] = useState(null);
+  const [playing, setPlaying] = useState(false);
 
   const basemapId = basemap || 'osm';
   const activeBasemap = BASEMAPS.find((item) => item.id === basemapId) || BASEMAPS[0];
@@ -672,9 +674,68 @@ export default function MapView({
     [tracks],
   );
 
+  const range = useMemo(() => {
+    let min = Infinity;
+    let max = -Infinity;
+    for (const track of displayTracks) {
+      for (const point of track.points) {
+        const time = new Date(point.timestamp).getTime();
+        if (!Number.isFinite(time)) continue;
+        if (time < min) min = time;
+        if (time > max) max = time;
+      }
+    }
+    return Number.isFinite(min) ? { min, max } : { min: 0, max: 0 };
+  }, [displayTracks]);
+
+  const cursorMs = cursor != null && range.max > range.min ? cursor : null;
+
+  const visibleTracks = useMemo(() => {
+    if (cursorMs == null) return displayTracks;
+    return displayTracks.map((track) => ({
+      ...track,
+      points: track.points.filter((point) => {
+        const time = new Date(point.timestamp).getTime();
+        return !Number.isFinite(time) || time <= cursorMs;
+      }),
+      stays: track.stays.filter((stay) => {
+        const time = new Date(stay.start).getTime();
+        return !Number.isFinite(time) || time <= cursorMs;
+      }),
+    }));
+  }, [displayTracks, cursorMs]);
+
+  useEffect(() => {
+    if (!playing) return undefined;
+    const span = range.max - range.min;
+    if (span <= 0) return undefined;
+    const step = Math.max(1000, Math.round(span / 300));
+    const id = setInterval(() => {
+      setCursor((previous) => {
+        const base = previous == null ? range.min : previous;
+        return Math.min(range.max, base + step);
+      });
+    }, 60);
+    return () => clearInterval(id);
+  }, [playing, range.min, range.max]);
+
+  useEffect(() => {
+    if (playing && cursor != null && cursor >= range.max) setPlaying(false);
+  }, [playing, cursor, range.max]);
+
+  const togglePlay = () => {
+    if (playing) {
+      setPlaying(false);
+      return;
+    }
+    if (range.max <= range.min) return;
+    setCursor(range.min);
+    setPlaying(true);
+  };
+
   const stays = useMemo(
     () =>
-      displayTracks.flatMap((track) =>
+      visibleTracks.flatMap((track) =>
         track.stays.map((stay, index) => ({
           ...stay,
           key: `${track.entityId}-stay-${index}-${stay.latitude}-${stay.longitude}`,
@@ -682,7 +743,7 @@ export default function MapView({
           name: names[track.entityId] || track.name || track.entityId,
         })),
       ),
-    [displayTracks, entities],
+    [visibleTracks, entities],
   );
 
   const segmentLabels = useMemo(() => {
@@ -866,7 +927,7 @@ export default function MapView({
         maxZoom={activeBasemap.maxZoom}
       />
 
-      {displayTracks.map((track) => {
+      {visibleTracks.map((track) => {
         const fallbackColor = colors[track.entityId] || '#2563eb';
         return buildRuns(track.points, fallbackColor).map((run, index) => (
           <Polyline
@@ -892,7 +953,7 @@ export default function MapView({
         />
       ) : null}
 
-      {displayTracks.map((track) => {
+      {visibleTracks.map((track) => {
         const fallbackColor = colors[track.entityId] || '#2563eb';
         return arrowSamples(track.points).map((index) => {
           const previous = track.points[index - 1];
@@ -914,7 +975,7 @@ export default function MapView({
         });
       })}
 
-      {displayTracks.map((track) => {
+      {visibleTracks.map((track) => {
         const fallbackColor = colors[track.entityId] || '#2563eb';
         return capPoints(mergeNearbyPoints(track.points)).map(({ point, index, count, last }) => {
           const key = `${track.entityId}-${index}-${point.latitude}-${point.longitude}`;
@@ -1008,7 +1069,8 @@ export default function MapView({
         );
       })}
 
-      {segmentLabels.map((segment) => (
+      {cursorMs == null &&
+        segmentLabels.map((segment) => (
         <Marker
           key={segment.key}
           position={[segment.latitude, segment.longitude]}
@@ -1117,6 +1179,46 @@ export default function MapView({
           </div>
         )}
       </div>
+
+      {range.max > range.min && (
+        <div className="timeline">
+          <button
+            type="button"
+            className="btn icon"
+            onClick={togglePlay}
+            title={playing ? 'Pause' : 'Rejouer la journée'}
+            aria-label={playing ? 'Pause' : 'Lecture'}
+          >
+            {playing ? '❚❚' : '▶'}
+          </button>
+          <input
+            type="range"
+            min={range.min}
+            max={range.max}
+            step={Math.max(1000, Math.round((range.max - range.min) / 600))}
+            value={cursor == null ? range.max : cursor}
+            onChange={(event) => {
+              setPlaying(false);
+              setCursor(Number(event.target.value));
+            }}
+          />
+          <span className="timeline-time">
+            {formatTime(cursor == null ? range.max : cursor)}
+          </span>
+          {cursorMs != null && (
+            <button
+              type="button"
+              className="link"
+              onClick={() => {
+                setPlaying(false);
+                setCursor(null);
+              }}
+            >
+              Tout
+            </button>
+          )}
+        </div>
+      )}
 
       {lineTarget ? (
         <div className="line-actions">
