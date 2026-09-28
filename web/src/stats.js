@@ -69,7 +69,7 @@ export function computeTrackStats(track) {
   const cumulative = new Array(points.length).fill(0);
   for (let i = 1; i < points.length; i += 1) cumulative[i] = cumulative[i - 1] + legs[i];
 
-  let maxSpeed = 0;
+  const windowSpeeds = [];
   let start = 0;
   for (let end = 1; end < points.length; end += 1) {
     if (!Number.isFinite(times[end])) continue;
@@ -84,8 +84,19 @@ export function computeTrackStats(track) {
     const span = times[end] - times[start];
     if (span < MIN_SPEED_WINDOW_MS) continue;
     const speed = (cumulative[end] - cumulative[start]) / (span / 3600000);
-    if (Number.isFinite(speed)) maxSpeed = Math.max(maxSpeed, speed);
+    if (Number.isFinite(speed) && speed > 0) windowSpeeds.push(speed);
   }
+
+  // On lisse la série par une médiane glissante sur 5 valeurs : un pic isolé
+  // (point GPS aberrant) est neutralisé, alors qu'une vitesse réellement
+  // élevée et soutenue est conservée.
+  const smoothed = windowSpeeds.map((_, index) => {
+    const window = windowSpeeds
+      .slice(Math.max(0, index - 2), index + 3)
+      .sort((a, b) => a - b);
+    return window[Math.floor(window.length / 2)];
+  });
+  const maxSpeed = smoothed.reduce((best, speed) => Math.max(best, speed), 0);
 
   const durationMs = startMs != null && endMs != null ? endMs - startMs : 0;
   return {
