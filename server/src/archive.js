@@ -7,6 +7,7 @@ import { hasDay, listArchives, overwriteDay, readDay, saveDay } from './history.
 import { filterAnomalies } from './motion.js';
 
 let timer = null;
+let running = null;
 
 function currentConfig() {
   const ha = getHaConfig();
@@ -19,6 +20,19 @@ function currentConfig() {
 }
 
 export async function runArchive({ force = false, all = false } = {}) {
+  if (running) {
+    console.log('[archive] archivage déjà en cours, requête ignorée');
+    return { archived: 0, skipped: 'already_running' };
+  }
+  running = doArchive({ force, all });
+  try {
+    return await running;
+  } finally {
+    running = null;
+  }
+}
+
+async function doArchive({ force = false, all = false } = {}) {
   const cfg = currentConfig();
   if (!cfg) return { archived: 0, skipped: 'ha_not_configured' };
 

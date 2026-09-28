@@ -61,6 +61,7 @@ export function saveDay(entityId, day, points) {
   const insert = db.prepare(
     'INSERT OR REPLACE INTO points (entity_id, day, timestamp, latitude, longitude, data) VALUES (?, ?, ?, ?, ?, ?)',
   );
+  let count = 0;
   for (const point of points || []) {
     const normalized = normalizePoint(point);
     if (!normalized) continue;
@@ -72,10 +73,10 @@ export function saveDay(entityId, day, points) {
       normalized.longitude,
       JSON.stringify(point),
     );
+    count += 1;
   }
-  const list = readDay(entityId, day);
-  writeJson(entityId, day, list);
-  return list.length;
+  writeJson(entityId, day, readDay(entityId, day));
+  return count;
 }
 
 export function overwriteDay(entityId, day, points) {
