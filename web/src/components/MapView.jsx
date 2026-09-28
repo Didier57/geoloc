@@ -1086,8 +1086,7 @@ export default function MapView({
         );
       })}
 
-      {cursorMs == null &&
-        segmentLabels.map((segment) => (
+      {segmentLabels.map((segment) => (
         <Marker
           key={segment.key}
           position={[segment.latitude, segment.longitude]}
