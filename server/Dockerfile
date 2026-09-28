@@ -1,4 +1,4 @@
-FROM node:22-alpine
+FROM node:24-alpine
 
 WORKDIR /app
 ENV NODE_ENV=production
@@ -12,4 +12,4 @@ COPY server/src ./src
 RUN mkdir -p /data
 
 EXPOSE 4000
-CMD ["node", "src/index.js"]
+CMD ["node", "--disable-warning=ExperimentalWarning", "src/index.js"]

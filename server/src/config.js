@@ -16,6 +16,7 @@ export const config = {
   isProduction: process.env.NODE_ENV === 'production',
   timeZone: process.env.APP_TZ || 'Europe/Paris',
   dataFile: process.env.DATA_FILE || './data/geoloc.json',
+  dbFile: process.env.DB_FILE || './data/geoloc.db',
   archiveBackfillDays: Math.max(1, Number(process.env.ARCHIVE_BACKFILL_DAYS || 8)),
   stillMaxKmh: Math.max(0, Number(process.env.STILL_MAX_KMH || 2)),
   walkMaxKmh: Math.max(0, Number(process.env.WALK_MAX_KMH || 8)),

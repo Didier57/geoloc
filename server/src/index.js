@@ -3,6 +3,8 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import { config } from './config.js';
+import { migrateStateFromJson } from './db.js';
+import { migrateFromJson } from './history.js';
 import { ensureAdmin } from './bootstrap.js';
 import { startArchiver } from './archive.js';
 import authRoutes from './routes/auth.js';
@@ -39,6 +41,8 @@ app.use((err, req, res, next) => {
   return res.status(err.status || 500).json({ error: 'server_error', message: err.message });
 });
 
+migrateStateFromJson();
+migrateFromJson();
 ensureAdmin();
 startArchiver();
 

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { config } from './config.js';
+import { db } from './db.js';
 
 const DIR = path.join(path.dirname(config.dataFile), 'history');
 
@@ -16,11 +17,128 @@ export function historyDir() {
   return DIR;
 }
 
+function writeJson(entityId, day, list) {
+  try {
+    const file = dayFile(entityId, day);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const tmp = `${file}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(list));
+    fs.renameSync(tmp, file);
+  } catch (err) {
+    console.error(`[history] écriture JSON impossible (${entityId} ${day}) : ${err.message}`);
+  }
+}
+
+function normalizePoint(point) {
+  const latitude = Number(point?.latitude);
+  const longitude = Number(point?.longitude);
+  if (!point?.timestamp || !Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  return { timestamp: String(point.timestamp), latitude, longitude };
+}
+
 export function hasDay(entityId, day) {
-  return fs.existsSync(dayFile(entityId, day));
+  const row = db
+    .prepare('SELECT 1 AS present FROM points WHERE entity_id = ? AND day = ? LIMIT 1')
+    .get(String(entityId), String(day));
+  return Boolean(row);
 }
 
 export function readDay(entityId, day) {
+  return db
+    .prepare('SELECT data FROM points WHERE entity_id = ? AND day = ? ORDER BY timestamp')
+    .all(String(entityId), String(day))
+    .map((row) => {
+      try {
+        return JSON.parse(row.data);
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean);
+}
+
+export function saveDay(entityId, day, points) {
+  const insert = db.prepare(
+    'INSERT OR REPLACE INTO points (entity_id, day, timestamp, latitude, longitude, data) VALUES (?, ?, ?, ?, ?, ?)',
+  );
+  for (const point of points || []) {
+    const normalized = normalizePoint(point);
+    if (!normalized) continue;
+    insert.run(
+      String(entityId),
+      String(day),
+      normalized.timestamp,
+      normalized.latitude,
+      normalized.longitude,
+      JSON.stringify(point),
+    );
+  }
+  const list = readDay(entityId, day);
+  writeJson(entityId, day, list);
+  return list.length;
+}
+
+export function overwriteDay(entityId, day, points) {
+  const insert = db.prepare(
+    'INSERT OR REPLACE INTO points (entity_id, day, timestamp, latitude, longitude, data) VALUES (?, ?, ?, ?, ?, ?)',
+  );
+  db.prepare('DELETE FROM points WHERE entity_id = ? AND day = ?').run(String(entityId), String(day));
+  for (const point of points || []) {
+    const normalized = normalizePoint(point);
+    if (!normalized) continue;
+    insert.run(
+      String(entityId),
+      String(day),
+      normalized.timestamp,
+      normalized.latitude,
+      normalized.longitude,
+      JSON.stringify(point),
+    );
+  }
+  const list = readDay(entityId, day);
+  writeJson(entityId, day, list);
+  return list.length;
+}
+
+export function deletePoint(entityId, day, timestamp) {
+  const info = db
+    .prepare('DELETE FROM points WHERE entity_id = ? AND day = ? AND timestamp = ?')
+    .run(String(entityId), String(day), String(timestamp));
+  if (info.changes === 0) return 0;
+  writeJson(entityId, day, readDay(entityId, day));
+  return info.changes;
+}
+
+export function listArchives() {
+  const rows = db
+    .prepare('SELECT DISTINCT entity_id FROM points')
+    .all()
+    .map((row) => row.entity_id);
+  const result = [];
+  for (const entityId of rows) {
+    const days = db
+      .prepare('SELECT DISTINCT day FROM points WHERE entity_id = ? ORDER BY day')
+      .all(entityId)
+      .map((row) => row.day)
+      .filter((day) => /^\d{4}-\d{2}-\d{2}$/.test(day));
+    result.push({ entityId, days });
+  }
+  return result;
+}
+
+export function archivedDays(entityIds) {
+  const result = new Map();
+  for (const id of entityIds) {
+    const days = db
+      .prepare('SELECT DISTINCT day FROM points WHERE entity_id = ?')
+      .all(String(id))
+      .map((row) => row.day);
+    result.set(id, new Set(days));
+  }
+  return result;
+}
+
+function readJsonDay(entityId, day) {
   try {
     const raw = fs.readFileSync(dayFile(entityId, day), 'utf8');
     const data = JSON.parse(raw);
@@ -30,91 +148,38 @@ export function readDay(entityId, day) {
   }
 }
 
-export function saveDay(entityId, day, points) {
-  const file = dayFile(entityId, day);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  const merged = new Map();
-  for (const point of [...readDay(entityId, day), ...(points || [])]) {
-    if (point?.timestamp) merged.set(point.timestamp, point);
-  }
-  const list = [...merged.values()].sort(
-    (a, b) => new Date(a.timestamp) - new Date(b.timestamp),
-  );
-  const tmp = `${file}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(list));
-  fs.renameSync(tmp, file);
-  return list.length;
-}
-
-export function overwriteDay(entityId, day, points) {
-  const file = dayFile(entityId, day);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  const list = [...(points || [])].sort(
-    (a, b) => new Date(a.timestamp) - new Date(b.timestamp),
-  );
-  const tmp = `${file}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(list));
-  fs.renameSync(tmp, file);
-  return list.length;
-}
-
-export function deletePoint(entityId, day, timestamp) {
-  const existing = readDay(entityId, day);
-  if (existing.length === 0) return 0;
-  const value = String(timestamp);
-  const kept = existing.filter((point) => String(point?.timestamp) !== value);
-  if (kept.length === existing.length) return 0;
-  const file = dayFile(entityId, day);
-  const tmp = `${file}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(kept));
-  fs.renameSync(tmp, file);
-  return existing.length - kept.length;
-}
-
-export function listArchives() {
-  let entries = [];
+export function migrateFromJson() {
+  const already = db.prepare("SELECT value FROM settings WHERE key = 'migrated_json'").get();
+  if (already) return { migrated: false };
+  let entities = [];
   try {
-    entries = fs.readdirSync(DIR, { withFileTypes: true });
+    entities = fs
+      .readdirSync(DIR, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
   } catch {
-    return [];
+    db.prepare("INSERT INTO settings (key, value) VALUES ('migrated_json', 'true')").run();
+    return { migrated: false };
   }
-  const result = [];
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
+  let days = 0;
+  for (const dirName of entities) {
     let files = [];
     try {
-      files = fs.readdirSync(path.join(DIR, entry.name));
+      files = fs.readdirSync(path.join(DIR, dirName));
     } catch {
       files = [];
     }
-    const days = files
-      .filter((name) => name.endsWith('.json'))
-      .map((name) => name.slice(0, -5))
-      .filter((day) => /^\d{4}-\d{2}-\d{2}$/.test(day))
-      .sort();
-    result.push({ entityId: entry.name, days });
-  }
-  return result;
-}
-
-export function archivedDays(entityIds) {
-  const result = new Map();
-  for (const id of entityIds) {
-    const dir = path.join(DIR, safeEntityId(id));
-    let entries = [];
-    try {
-      entries = fs.readdirSync(dir);
-    } catch {
-      entries = [];
+    for (const file of files) {
+      if (!file.endsWith('.json')) continue;
+      const day = file.slice(0, -5);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) continue;
+      const points = readJsonDay(dirName, day);
+      if (points.length === 0) continue;
+      saveDay(dirName, day, points);
+      days += 1;
     }
-    result.set(
-      id,
-      new Set(
-        entries
-          .filter((name) => name.endsWith('.json'))
-          .map((name) => name.slice(0, -5)),
-      ),
-    );
   }
-  return result;
+  db.prepare("INSERT INTO settings (key, value) VALUES ('migrated_json', 'true')").run();
+  if (days > 0) console.log(`[history] migration JSON -> SQLite : ${days} jour(s)`);
+  return { migrated: days > 0, days };
 }

@@ -1,205 +1,228 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { dirname } from 'node:path';
 import { config } from './config.js';
+import { db } from './db.js';
 import { haversineKm } from './motion.js';
 import { hashPassword } from './utils/password.js';
 
-const emptyState = () => ({
-  users: [],
-  nextUserId: 1,
-  ha: null,
-  emptyDays: {},
-  deletedPoints: {},
-  placeLabels: [],
-  filters: null,
-});
-
-let state = emptyState();
-
-function load() {
+function rowToUser(row) {
+  if (!row) return undefined;
+  let selectedEntities = [];
   try {
-    if (existsSync(config.dataFile)) {
-      const parsed = JSON.parse(readFileSync(config.dataFile, 'utf8'));
-      state = { ...emptyState(), ...parsed };
-      if (!Array.isArray(state.users)) state.users = [];
-      if (typeof state.nextUserId !== 'number') state.nextUserId = state.users.length + 1;
-    }
-  } catch (err) {
-    console.error(`[store] Lecture impossible de ${config.dataFile} : ${err.message}`);
-    state = emptyState();
+    selectedEntities = JSON.parse(row.selected_entities || '[]');
+  } catch {
+    selectedEntities = [];
   }
+  if (!Array.isArray(selectedEntities)) selectedEntities = [];
+  return {
+    id: row.id,
+    username: row.username,
+    email: row.email,
+    passwordHash: row.password_hash,
+    role: row.role,
+    active: Boolean(row.active),
+    selectedEntity: row.selected_entity || selectedEntities[0] || null,
+    selectedEntities,
+    createdAt: row.created_at,
+    lastLoginAt: row.last_login_at,
+  };
 }
-
-function save() {
-  try {
-    const dir = dirname(config.dataFile);
-    if (dir && dir !== '.' && !existsSync(dir)) mkdirSync(dir, { recursive: true });
-    const tmp = `${config.dataFile}.tmp`;
-    writeFileSync(tmp, JSON.stringify(state, null, 2), 'utf8');
-    renameSync(tmp, config.dataFile);
-  } catch (err) {
-    console.error(`[store] Écriture impossible de ${config.dataFile} : ${err.message}`);
-  }
-}
-
-load();
 
 export function listUsers() {
-  return state.users;
+  return db
+    .prepare('SELECT * FROM users ORDER BY id')
+    .all()
+    .map(rowToUser);
 }
 
 export function findUserByIdentifier(identifier) {
   const value = String(identifier || '').trim().toLowerCase();
   if (!value) return undefined;
-  return state.users.find(
-    (u) => u.username.toLowerCase() === value || (u.email || '').toLowerCase() === value,
-  );
+  const row = db
+    .prepare('SELECT * FROM users WHERE lower(username) = ? OR lower(email) = ? LIMIT 1')
+    .get(value, value);
+  return rowToUser(row);
 }
 
 export function findUserById(id) {
-  return state.users.find((u) => u.id === id);
+  const row = db.prepare('SELECT * FROM users WHERE id = ?').get(Number(id));
+  return rowToUser(row);
 }
 
 export function countAdmins() {
-  return state.users.filter((u) => u.role === 'admin' && u.active).length;
+  const row = db
+    .prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND active = 1")
+    .get();
+  return row?.count || 0;
 }
 
 export function createUser({ username, email, password, role }) {
-  const user = {
-    id: state.nextUserId++,
-    username: String(username).trim(),
-    email: email ? String(email).trim() : null,
-    passwordHash: hashPassword(password),
-    role: role === 'admin' ? 'admin' : 'user',
-    active: true,
-    selectedEntity: null,
-    selectedEntities: [],
-    createdAt: new Date().toISOString(),
-    lastLoginAt: null,
-  };
-  state.users.push(user);
-  save();
-  return user;
+  const info = db
+    .prepare(
+      `INSERT INTO users (username, email, password_hash, role, active, selected_entity, selected_entities, created_at, last_login_at)
+       VALUES (?, ?, ?, ?, 1, NULL, '[]', ?, NULL)`,
+    )
+    .run(
+      String(username).trim(),
+      email ? String(email).trim() : null,
+      hashPassword(password),
+      role === 'admin' ? 'admin' : 'user',
+      new Date().toISOString(),
+    );
+  return findUserById(Number(info.lastInsertRowid));
 }
 
 export function updateUser(id, patch) {
   const user = findUserById(id);
   if (!user) return null;
-  if (patch.email !== undefined) user.email = patch.email ? String(patch.email).trim() : null;
-  if (patch.role !== undefined) user.role = patch.role === 'admin' ? 'admin' : 'user';
-  if (patch.active !== undefined) user.active = Boolean(patch.active);
-  if (patch.password) user.passwordHash = hashPassword(patch.password);
-  save();
-  return user;
+  if (patch.email !== undefined) {
+    db.prepare('UPDATE users SET email = ? WHERE id = ?').run(
+      patch.email ? String(patch.email).trim() : null,
+      user.id,
+    );
+  }
+  if (patch.role !== undefined) {
+    db.prepare('UPDATE users SET role = ? WHERE id = ?').run(
+      patch.role === 'admin' ? 'admin' : 'user',
+      user.id,
+    );
+  }
+  if (patch.active !== undefined) {
+    db.prepare('UPDATE users SET active = ? WHERE id = ?').run(patch.active ? 1 : 0, user.id);
+  }
+  if (patch.password) {
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(
+      hashPassword(patch.password),
+      user.id,
+    );
+  }
+  return findUserById(user.id);
 }
 
 export function deleteUser(id) {
-  const index = state.users.findIndex((u) => u.id === id);
-  if (index === -1) return false;
-  state.users.splice(index, 1);
-  save();
-  return true;
+  const info = db.prepare('DELETE FROM users WHERE id = ?').run(Number(id));
+  return info.changes > 0;
 }
 
 export function touchLogin(id) {
-  const user = findUserById(id);
-  if (user) {
-    user.lastLoginAt = new Date().toISOString();
-    save();
-  }
+  db.prepare('UPDATE users SET last_login_at = ? WHERE id = ?').run(
+    new Date().toISOString(),
+    Number(id),
+  );
 }
 
 export function setUserSelectedEntities(id, entityIds) {
   const user = findUserById(id);
   if (!user) return [];
-  const list = [
-    ...new Set((entityIds || []).map((value) => String(value)).filter(Boolean)),
-  ];
-  user.selectedEntities = list;
-  user.selectedEntity = list[0] || null;
-  save();
+  const list = [...new Set((entityIds || []).map((value) => String(value)).filter(Boolean))];
+  db.prepare('UPDATE users SET selected_entities = ?, selected_entity = ? WHERE id = ?').run(
+    JSON.stringify(list),
+    list[0] || null,
+    user.id,
+  );
   return list;
 }
 
 export function hasEmptyDay(entityId, day) {
-  const list = state.emptyDays?.[String(entityId)];
-  return Array.isArray(list) && list.includes(day);
+  const row = db
+    .prepare('SELECT 1 AS present FROM empty_days WHERE entity_id = ? AND day = ?')
+    .get(String(entityId), String(day));
+  return Boolean(row);
 }
 
 export function markEmptyDay(entityId, day) {
-  const key = String(entityId);
-  if (!state.emptyDays) state.emptyDays = {};
-  const list = Array.isArray(state.emptyDays[key]) ? state.emptyDays[key] : [];
-  if (list.includes(day)) return;
-  list.push(day);
-  list.sort();
-  state.emptyDays[key] = list;
-  save();
+  db.prepare('INSERT OR IGNORE INTO empty_days (entity_id, day) VALUES (?, ?)').run(
+    String(entityId),
+    String(day),
+  );
 }
 
 export function clearEmptyDay(entityId, day) {
-  const key = String(entityId);
-  const list = state.emptyDays?.[key];
-  if (!Array.isArray(list) || !list.includes(day)) return;
-  state.emptyDays[key] = list.filter((value) => value !== day);
-  save();
+  db.prepare('DELETE FROM empty_days WHERE entity_id = ? AND day = ?').run(
+    String(entityId),
+    String(day),
+  );
 }
 
 export function deletedPointsFor(entityId) {
-  const list = state.deletedPoints?.[String(entityId)];
-  return Array.isArray(list) ? list : [];
+  return db
+    .prepare('SELECT timestamp FROM deleted_points WHERE entity_id = ? ORDER BY timestamp')
+    .all(String(entityId))
+    .map((row) => row.timestamp);
 }
 
 export function markPointDeleted(entityId, timestamp) {
-  const key = String(entityId);
-  const value = String(timestamp);
-  if (!state.deletedPoints) state.deletedPoints = {};
-  const list = Array.isArray(state.deletedPoints[key]) ? state.deletedPoints[key] : [];
-  if (list.includes(value)) return;
-  list.push(value);
-  list.sort();
-  state.deletedPoints[key] = list;
-  save();
+  db.prepare('INSERT OR IGNORE INTO deleted_points (entity_id, timestamp) VALUES (?, ?)').run(
+    String(entityId),
+    String(timestamp),
+  );
+}
+
+function readSetting(key) {
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
+  if (!row) return null;
+  try {
+    return JSON.parse(row.value);
+  } catch {
+    return null;
+  }
+}
+
+function writeSetting(key, value) {
+  db.prepare(
+    'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+  ).run(key, JSON.stringify(value));
 }
 
 export function getHaConfig() {
-  return state.ha;
+  return readSetting('ha');
 }
 
 export function setHaConfig(ha) {
-  state.ha = ha;
-  save();
+  writeSetting('ha', ha);
 }
 
 export function setHaEntities(entityIds) {
-  if (!state.ha) return null;
-  state.ha.entities = [...new Set((entityIds || []).map(String))];
-  state.ha.entitiesUpdatedAt = new Date().toISOString();
-  save();
-  return state.ha.entities;
+  const ha = getHaConfig();
+  if (!ha) return null;
+  ha.entities = [...new Set((entityIds || []).map(String))];
+  ha.entitiesUpdatedAt = new Date().toISOString();
+  setHaConfig(ha);
+  return ha.entities;
 }
 
 export function getFilters() {
-  return state.filters || null;
+  return readSetting('filters');
 }
 
 export function setFilters(patch) {
   const maxSpeedKmh = Number(patch?.maxSpeedKmh);
   const anomalyMinKm = Number(patch?.anomalyMinKm);
-  state.filters = {
+  const filters = {
     maxSpeedKmh:
       Number.isFinite(maxSpeedKmh) && maxSpeedKmh > 0 ? maxSpeedKmh : config.maxSpeedKmh,
     anomalyMinKm:
       Number.isFinite(anomalyMinKm) && anomalyMinKm > 0 ? anomalyMinKm : config.anomalyMinKm,
   };
-  save();
-  return state.filters;
+  writeSetting('filters', filters);
+  return filters;
 }
 
 const LABEL_MATCH_KM = 0.15;
 
+function rowToLabel(row) {
+  return {
+    latitude: row.latitude,
+    longitude: row.longitude,
+    name: row.name,
+    placeId: row.place_id,
+    updatedAt: row.updated_at,
+  };
+}
+
 export function listPlaceLabels() {
-  return Array.isArray(state.placeLabels) ? state.placeLabels : [];
+  return db
+    .prepare('SELECT * FROM place_labels ORDER BY updated_at')
+    .all()
+    .map(rowToLabel);
 }
 
 export function upsertPlaceLabel({ latitude, longitude, name, placeId }) {
@@ -207,33 +230,35 @@ export function upsertPlaceLabel({ latitude, longitude, name, placeId }) {
   const lng = Number(longitude);
   const label = String(name || '').trim();
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || !label) return null;
-  if (!Array.isArray(state.placeLabels)) state.placeLabels = [];
-  const existing = state.placeLabels.find(
+
+  const existing = listPlaceLabels().find(
     (item) => haversineKm(item.latitude, item.longitude, lat, lng) <= LABEL_MATCH_KM,
   );
-  const entry = {
-    latitude: lat,
-    longitude: lng,
-    name: label,
-    placeId: placeId != null ? String(placeId) : null,
-    updatedAt: new Date().toISOString(),
-  };
+  const updatedAt = new Date().toISOString();
   if (existing) {
-    Object.assign(existing, entry);
+    db.prepare(
+      'UPDATE place_labels SET latitude = ?, longitude = ?, name = ?, place_id = ?, updated_at = ? WHERE latitude = ? AND longitude = ?',
+    ).run(lat, lng, label, placeId != null ? String(placeId) : null, updatedAt, existing.latitude, existing.longitude);
   } else {
-    state.placeLabels.push(entry);
+    db.prepare(
+      'INSERT INTO place_labels (latitude, longitude, name, place_id, updated_at) VALUES (?, ?, ?, ?, ?)',
+    ).run(lat, lng, label, placeId != null ? String(placeId) : null, updatedAt);
   }
-  save();
   return listPlaceLabels();
 }
 
 export function removePlaceLabel(latitude, longitude) {
   const lat = Number(latitude);
   const lng = Number(longitude);
-  if (!Array.isArray(state.placeLabels)) return [];
-  state.placeLabels = state.placeLabels.filter(
-    (item) => haversineKm(item.latitude, item.longitude, lat, lng) > LABEL_MATCH_KM,
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return listPlaceLabels();
+  const matches = listPlaceLabels().filter(
+    (item) => haversineKm(item.latitude, item.longitude, lat, lng) <= LABEL_MATCH_KM,
   );
-  save();
+  for (const match of matches) {
+    db.prepare('DELETE FROM place_labels WHERE latitude = ? AND longitude = ?').run(
+      match.latitude,
+      match.longitude,
+    );
+  }
   return listPlaceLabels();
 }
