@@ -1,9 +1,19 @@
 import { Router } from 'express';
 import { clearAuthCookie, requireAuth, setAuthCookie, signToken } from '../auth.js';
-import { findUserById, findUserByIdentifier, setUserSelectedEntity, touchLogin } from '../store.js';
+import {
+  findUserById,
+  findUserByIdentifier,
+  setUserSelectedEntities,
+  touchLogin,
+} from '../store.js';
 import { verifyPassword } from '../utils/password.js';
 
 const router = Router();
+
+function selectedList(user) {
+  if (Array.isArray(user.selectedEntities)) return user.selectedEntities;
+  return user.selectedEntity ? [user.selectedEntity] : [];
+}
 
 function publicUser(user) {
   return {
@@ -12,6 +22,7 @@ function publicUser(user) {
     email: user.email,
     role: user.role,
     selectedEntity: user.selectedEntity || null,
+    selectedEntities: selectedList(user),
   };
 }
 
@@ -36,9 +47,14 @@ router.get('/me', requireAuth, (req, res) => {
 });
 
 router.post('/selection', requireAuth, (req, res) => {
-  const entityId = req.body?.entityId ?? null;
-  const selectedEntity = setUserSelectedEntity(req.user.id, entityId);
-  return res.json({ ok: true, selectedEntity });
+  const body = req.body || {};
+  const raw = Array.isArray(body.entityIds)
+    ? body.entityIds
+    : body.entityId != null
+      ? [body.entityId]
+      : [];
+  const selectedEntities = setUserSelectedEntities(req.user.id, raw);
+  return res.json({ ok: true, selectedEntities, selectedEntity: selectedEntities[0] || null });
 });
 
 router.post('/logout', (req, res) => {

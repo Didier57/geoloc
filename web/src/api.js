@@ -30,8 +30,13 @@ export const api = {
   login: (identifier, password) =>
     request('/api/auth/login', { method: 'POST', body: JSON.stringify({ identifier, password }) }),
   me: () => request('/api/auth/me'),
-  setSelection: (entityId) =>
-    request('/api/auth/selection', { method: 'POST', body: JSON.stringify({ entityId }) }),
+  setSelection: (entityIds) =>
+    request('/api/auth/selection', {
+      method: 'POST',
+      body: JSON.stringify({
+        entityIds: Array.isArray(entityIds) ? entityIds : entityIds ? [entityIds] : [],
+      }),
+    }),
   logout: () => request('/api/auth/logout', { method: 'POST' }),
 
   users: () => request('/api/users'),

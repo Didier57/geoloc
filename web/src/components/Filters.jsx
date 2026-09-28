@@ -2,6 +2,7 @@ export default function Filters({
   entities,
   selectedIds,
   onSelect,
+  onSelectAll,
   onClear,
   colors,
   date,
@@ -13,12 +14,17 @@ export default function Filters({
     <div className="filters">
       <div className="filter-block">
         <div className="filter-head">
-          <span>Personne affichée</span>
-          {entities.length > 0 && selected.size > 0 && (
+          <span>Personnes affichées</span>
+          {entities.length > 0 && (
             <span className="filter-actions">
-              <button className="link" onClick={onClear}>
-                Aucun
+              <button className="link" onClick={onSelectAll}>
+                Toutes
               </button>
+              {selected.size > 0 && (
+                <button className="link" onClick={onClear}>
+                  Aucune
+                </button>
+              )}
             </span>
           )}
         </div>
@@ -31,8 +37,7 @@ export default function Filters({
           {entities.map((entity) => (
             <label key={entity.entityId} className="chip" title={entity.entityId}>
               <input
-                type="radio"
-                name="selected-entity"
+                type="checkbox"
                 checked={selected.has(entity.entityId)}
                 onChange={() => onSelect(entity.entityId)}
               />

@@ -72,6 +72,7 @@ export function createUser({ username, email, password, role }) {
     role: role === 'admin' ? 'admin' : 'user',
     active: true,
     selectedEntity: null,
+    selectedEntities: [],
     createdAt: new Date().toISOString(),
     lastLoginAt: null,
   };
@@ -107,12 +108,16 @@ export function touchLogin(id) {
   }
 }
 
-export function setUserSelectedEntity(id, entityId) {
+export function setUserSelectedEntities(id, entityIds) {
   const user = findUserById(id);
-  if (!user) return null;
-  user.selectedEntity = entityId ? String(entityId) : null;
+  if (!user) return [];
+  const list = [
+    ...new Set((entityIds || []).map((value) => String(value)).filter(Boolean)),
+  ];
+  user.selectedEntities = list;
+  user.selectedEntity = list[0] || null;
   save();
-  return user.selectedEntity;
+  return list;
 }
 
 export function hasEmptyDay(entityId, day) {

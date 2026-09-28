@@ -42,7 +42,10 @@ export default function Dashboard({ user, onLogout }) {
 
   const [config, setConfig] = useState(null);
   const [entities, setEntities] = useState([]);
-  const [selectedIds, setSelectedIds] = useState(() => (user.selectedEntity ? [user.selectedEntity] : []));
+  const [selectedIds, setSelectedIds] = useState(() => {
+    if (Array.isArray(user.selectedEntities)) return user.selectedEntities;
+    return user.selectedEntity ? [user.selectedEntity] : [];
+  });
   const selectedRef = useRef(selectedIds);
   const [date, setDate] = useState(() => toDateInput(new Date()));
   const [tracks, setTracks] = useState([]);
@@ -79,16 +82,16 @@ export default function Dashboard({ user, onLogout }) {
     try {
       const { entities: list } = await api.entities();
       setEntities(list);
-      const current = selectedRef.current[0];
-      if (current) {
-        // On garde l'entité choisie même si elle est absente de la liste à cet
-        // instant (GPS coupé, Home Assistant indisponible) : sinon l'appli
+      const current = selectedRef.current;
+      if (current.length) {
+        // On garde les entités choisies même si elles sont absentes de la liste
+        // à cet instant (GPS coupé, Home Assistant indisponible) : sinon l'appli
         // basculait toute seule sur un autre device.
-        setSelectedIds([current]);
+        setSelectedIds(current);
       } else {
-        const next = list[0]?.entityId || null;
-        setSelectedIds(next ? [next] : []);
-        if (next) api.setSelection(next).catch(() => {});
+        const next = list[0]?.entityId ? [list[0].entityId] : [];
+        setSelectedIds(next);
+        if (next.length) api.setSelection(next).catch(() => {});
       }
       setError('');
     } catch (err) {
@@ -154,14 +157,22 @@ export default function Dashboard({ user, onLogout }) {
   }, [entities]);
 
   function selectEntity(id) {
-    const next = selectedIds.includes(id) ? [] : [id];
+    const next = selectedIds.includes(id)
+      ? selectedIds.filter((value) => value !== id)
+      : [...selectedIds, id];
     setSelectedIds(next);
-    api.setSelection(next[0] || null).catch(() => {});
+    api.setSelection(next).catch(() => {});
+  }
+
+  function selectAllEntities() {
+    const next = entities.map((entity) => entity.entityId);
+    setSelectedIds(next);
+    api.setSelection(next).catch(() => {});
   }
 
   function clearEntities() {
     setSelectedIds([]);
-    api.setSelection(null).catch(() => {});
+    api.setSelection([]).catch(() => {});
   }
 
   function shiftDay(delta) {
@@ -335,6 +346,7 @@ export default function Dashboard({ user, onLogout }) {
             entities={entities}
             selectedIds={selectedIds}
             onSelect={selectEntity}
+            onSelectAll={selectAllEntities}
             onClear={clearEntities}
             colors={colors}
             date={date}
