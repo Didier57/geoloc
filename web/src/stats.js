@@ -94,7 +94,7 @@ export function computeTrackStats(track) {
     const window = windowSpeeds
       .slice(Math.max(0, index - 2), index + 3)
       .sort((a, b) => a - b);
-    return window[Math.floor(window.length / 2)];
+    return window[Math.floor((window.length - 1) / 2)];
   });
   const maxSpeed = smoothed.reduce((best, speed) => Math.max(best, speed), 0);
 
