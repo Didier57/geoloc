@@ -749,6 +749,14 @@ select:focus {
   color: #7c3aed;
 }
 
+.stay-label-suggest {
+  color: var(--muted-2);
+}
+
+.stay-label-suggest strong {
+  color: var(--fg);
+}
+
 .stay-label-select,
 .stay-label-custom input {
   width: 100%;

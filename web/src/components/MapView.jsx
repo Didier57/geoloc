@@ -39,6 +39,7 @@ const PLACES_RADIUS_M = 150;
 const MAX_PLACE_MARKERS = 80;
 const MAX_SEGMENT_LABELS = 120;
 const LABEL_MATCH_RADIUS_M = 150;
+const LABEL_SUGGEST_RADIUS_M = 400;
 
 const BASEMAP_STORAGE_KEY = 'geoloc.basemap';
 
@@ -117,9 +118,9 @@ function coordKey(latitude, longitude) {
   return `${Number(latitude).toFixed(5)},${Number(longitude).toFixed(5)}`;
 }
 
-function findPlaceLabel(labels, latitude, longitude) {
+function findPlaceLabel(labels, latitude, longitude, radiusM = LABEL_MATCH_RADIUS_M) {
   let match = null;
-  let bestKm = LABEL_MATCH_RADIUS_M / 1000;
+  let bestKm = radiusM / 1000;
   for (const label of labels) {
     const distance = haversineKm(latitude, longitude, label.latitude, label.longitude);
     if (distance <= bestKm) {
@@ -515,7 +516,7 @@ function segmentIcon(text, color) {
   });
 }
 
-function StayLabelEditor({ assigned, placeList, onSave, onClear }) {
+function StayLabelEditor({ assigned, suggested, placeList, onSave, onClear }) {
   const [custom, setCustom] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -561,6 +562,18 @@ function StayLabelEditor({ assigned, placeList, onSave, onClear }) {
               Retirer
             </button>
           </>
+        ) : suggested ? (
+          <span className="stay-label-suggest">
+            Suggéré : <strong>{suggested.name}</strong>{' '}
+            <button
+              type="button"
+              className="link"
+              onClick={() => run(() => onSave(suggested.name, suggested.placeId))}
+              disabled={busy}
+            >
+              Utiliser
+            </button>
+          </span>
         ) : (
           <span className="muted">Aucun lieu enregistré</span>
         )}
@@ -1028,6 +1041,9 @@ export default function MapView({
 
       {stays.map((stay) => {
         const assigned = findPlaceLabel(labels, stay.latitude, stay.longitude);
+        const suggested = assigned
+          ? null
+          : findPlaceLabel(labels, stay.latitude, stay.longitude, LABEL_SUGGEST_RADIUS_M);
         const placeList = places[coordKey(stay.latitude, stay.longitude)];
         return (
           <Marker
@@ -1060,6 +1076,7 @@ export default function MapView({
               </span>
               <StayLabelEditor
                 assigned={assigned}
+                suggested={suggested}
                 placeList={placeList}
                 onSave={(name, placeId) => saveStayLabel(stay, name, placeId)}
                 onClear={() => clearStayLabel(stay)}
