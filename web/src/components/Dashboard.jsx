@@ -63,7 +63,7 @@ export default function Dashboard({ user, onLogout }) {
   const [removed, setRemoved] = useState(0);
   const [adminOpen, setAdminOpen] = useState(false);
   const [syncingAll, setSyncingAll] = useState(false);
-  const [showStats, setShowStats] = useState(false);
+  const [showStats, setShowStats] = useState(true);
   const autoSyncDone = useRef(false);
 
   const loadConfig = useCallback(async () => {
