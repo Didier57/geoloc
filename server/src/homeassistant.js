@@ -9,6 +9,8 @@ export class HomeAssistantError extends Error {
   }
 }
 
+const REQUEST_TIMEOUT_MS = 20000;
+
 function normalizeUrl(url) {
   return String(url || '').trim().replace(/\/+$/, '');
 }
@@ -23,13 +25,23 @@ async function request(cfg, path) {
   if (!base) throw new HomeAssistantError('Adresse Home Assistant manquante.');
   if (!cfg?.token) throw new HomeAssistantError('Token Home Assistant manquant.');
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   let res;
   try {
     res = await fetch(`${base}${path}`, {
       headers: { Authorization: `Bearer ${cfg.token}`, Accept: 'application/json' },
+      signal: controller.signal,
     });
   } catch (err) {
+    if (err.name === 'AbortError') {
+      throw new HomeAssistantError(
+        `Home Assistant n'a pas répondu en ${REQUEST_TIMEOUT_MS / 1000} s (${base}).`,
+      );
+    }
     throw new HomeAssistantError(`Connexion impossible à ${base} (${err.message}).`);
+  } finally {
+    clearTimeout(timeout);
   }
 
   if (res.status === 401) throw new HomeAssistantError('Token refusé par Home Assistant (401).', 401);
