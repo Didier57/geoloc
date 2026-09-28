@@ -30,6 +30,8 @@ const STAY_MERGE_RADIUS_M = 250;
 const STAY_MERGE_GAP_MINUTES = 10;
 const MAX_ARROWS = 40;
 const ARROW_STEP_KM = 0.3;
+const RUN_GAP_MINUTES = 15;
+const RUN_GAP_KM = 5;
 const STAY_COLOR = '#7c3aed';
 const PLACES_MIN_ZOOM = 17;
 const PLACES_RADIUS_M = 150;
@@ -385,6 +387,20 @@ function capPoints(entries) {
   return result;
 }
 
+function minutesBetween(from, to) {
+  const a = new Date(from.timestamp).getTime();
+  const b = new Date(to.timestamp).getTime();
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return 0;
+  return (b - a) / 60000;
+}
+
+function isRunGap(previous, point) {
+  if (minutesBetween(previous, point) > RUN_GAP_MINUTES) return true;
+  return (
+    haversineKm(previous.latitude, previous.longitude, point.latitude, point.longitude) > RUN_GAP_KM
+  );
+}
+
 function buildRuns(points, fallbackColor) {
   const runs = [];
   let current = null;
@@ -392,7 +408,19 @@ function buildRuns(points, fallbackColor) {
     const previous = points[i - 1];
     const point = points[i];
     const mode = point.mode || 'unknown';
-    if (!current || current.mode !== mode) {
+    const gap = isRunGap(previous, point);
+    if (!current || current.mode !== mode || gap) {
+      if (gap) {
+        // Coupure GPS : on ne relie pas les deux points, le trait s'arrete net.
+        current = {
+          mode,
+          color: modeColor(mode, fallbackColor),
+          positions: [[point.latitude, point.longitude]],
+          points: [point],
+        };
+        runs.push(current);
+        continue;
+      }
       current = {
         mode,
         color: modeColor(mode, fallbackColor),
@@ -404,7 +432,7 @@ function buildRuns(points, fallbackColor) {
     current.positions.push([point.latitude, point.longitude]);
     current.points.push(point);
   }
-  return runs;
+  return runs.filter((run) => run.positions.length > 1);
 }
 
 function distancePointToSegmentKm(point, a, b) {
