@@ -212,11 +212,26 @@ export default function Dashboard({ user, onLogout }) {
     loadEntities();
   }
 
-  async function handleSync(force = true) {
+  async function waitForArchive(maxMs = 120000) {
+    const start = Date.now();
+    while (Date.now() - start < maxMs) {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      try {
+        const status = await api.archiveStatus();
+        if (!status.running) return true;
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  }
+
+  async function handleSync(force = false) {
     setSyncing(true);
     setError('');
     try {
-      await api.archive(force);
+      const result = await api.archive(force);
+      if (result?.background) await waitForArchive();
       await loadEntities();
       await loadTracks();
     } catch (err) {

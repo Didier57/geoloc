@@ -32,6 +32,26 @@ export async function runArchive({ force = false, all = false } = {}) {
   }
 }
 
+export function isArchiving() {
+  return Boolean(running);
+}
+
+export function archiveInBackground({ force = false, all = false } = {}) {
+  if (running) {
+    console.log('[archive] archivage déjà en cours, requête ignorée');
+    return { started: false, skipped: 'already_running' };
+  }
+  running = doArchive({ force, all })
+    .catch((err) => {
+      console.error('[archive] erreur en arrière-plan:', err.message);
+      return null;
+    })
+    .finally(() => {
+      running = null;
+    });
+  return { started: true };
+}
+
 async function doArchive({ force = false, all = false } = {}) {
   const cfg = currentConfig();
   if (!cfg) return { archived: 0, skipped: 'ha_not_configured' };
@@ -71,7 +91,8 @@ async function doArchive({ force = false, all = false } = {}) {
         markEmptyDay(id, dayString);
       }
     }
-    console.log(`[archive] ${dayString}: ${missing.length} entité(s) traitée(s)`);
+    const mem = Math.round(process.memoryUsage().rss / 1024 / 1024);
+    console.log(`[archive] ${dayString}: ${missing.length} entité(s) traitée(s) — ${mem} Mo RSS`);
   }
 
   const cleaned = all ? cleanArchives() : null;

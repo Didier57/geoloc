@@ -16,6 +16,13 @@ import importRoutes from './routes/import.js';
 
 const app = express();
 
+process.on('uncaughtException', (err) => {
+  console.error('[fatal] exception non capturée:', err);
+});
+process.on('unhandledRejection', (err) => {
+  console.error('[fatal] promesse rejetée non capturée:', err);
+});
+
 app.use(cors({ origin: config.appUrl, credentials: true }));
 app.use(cookieParser());
 app.use('/api/backup', express.json({ limit: '200mb' }), backupRoutes);

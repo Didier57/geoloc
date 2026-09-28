@@ -18,7 +18,7 @@ import { nearbyPlaces } from '../places.js';
 import { deletePoint, listArchives, readDay } from '../history.js';
 import { dayEnd, dayStart, listDays, todayString, toDayString } from '../dates.js';
 import { config } from '../config.js';
-import { runArchive } from '../archive.js';
+import { runArchive, archiveInBackground, isArchiving } from '../archive.js';
 import { collectTracks } from '../tracks.js';
 
 const router = Router();
@@ -85,8 +85,18 @@ router.post('/filters', requireAdmin, (req, res) => {
 });
 
 router.post('/archive', requireConfig, async (req, res) => {
-  const result = await runArchive({ force: req.body?.force === true, all: req.body?.all === true });
-  res.json({ ok: true, ...result });
+  const force = req.body?.force === true;
+  const all = req.body?.all === true;
+  if (all) {
+    const result = await runArchive({ force, all });
+    return res.json({ ok: true, ...result });
+  }
+  const started = archiveInBackground({ force, all });
+  return res.json({ ok: true, background: true, ...started });
+});
+
+router.get('/archive/status', (req, res) => {
+  res.json({ running: isArchiving() });
 });
 
 router.delete('/point', requireAdmin, (req, res) => {

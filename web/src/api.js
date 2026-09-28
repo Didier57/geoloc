@@ -57,6 +57,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ force: !!force, all: !!all }),
     }),
+  archiveStatus: () => request('/api/geoloc/archive/status'),
   reverse: (lat, lng) => request(`/api/geoloc/reverse?lat=${lat}&lng=${lng}`),
   places: (lat, lng, radius) =>
     request(`/api/geoloc/places?lat=${lat}&lng=${lng}&radius=${radius || 150}`),
