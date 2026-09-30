@@ -516,9 +516,10 @@ function segmentIcon(text, color) {
   });
 }
 
-function StayLabelEditor({ assigned, suggested, placeList, onSave, onClear }) {
+function StayLabelEditor({ assigned, suggested, placeList, onSave, onClear, recurringCount = 0 }) {
   const [custom, setCustom] = useState('');
   const [busy, setBusy] = useState(false);
+  const [applyRecurring, setApplyRecurring] = useState(recurringCount > 0);
 
   const run = async (action) => {
     setBusy(true);
@@ -534,13 +535,13 @@ function StayLabelEditor({ assigned, suggested, placeList, onSave, onClear }) {
     if (!id) return;
     const place = (placeList || []).find((item) => String(item.id) === id);
     if (!place) return;
-    run(() => onSave(place.name, place.id));
+    run(() => onSave(place.name, place.id, applyRecurring));
   };
 
   const handleCustom = () => {
     const name = custom.trim();
     if (!name) return;
-    run(() => onSave(name, null)).then(() => setCustom(''));
+    run(() => onSave(name, null, applyRecurring)).then(() => setCustom(''));
   };
 
   let placeholder = 'Choisir un POI proche…';
@@ -611,6 +612,17 @@ function StayLabelEditor({ assigned, suggested, placeList, onSave, onClear }) {
           Enregistrer
         </button>
       </div>
+      {recurringCount > 0 ? (
+        <label className="stay-label-recurring">
+          <input
+            type="checkbox"
+            checked={applyRecurring}
+            onChange={(event) => setApplyRecurring(event.target.checked)}
+            disabled={busy}
+          />
+          Appliquer aussi aux {recurringCount} autre(s) arrêt(s) proche(s)
+        </label>
+      ) : null}
     </div>
   );
 }
@@ -797,20 +809,36 @@ export default function MapView({
   }, [zoom, stays, ensurePlaces]);
 
   const saveStayLabel = useCallback(
-    async (stay, name, placeId) => {
+    async (stay, name, placeId, applyRecurring = false) => {
       try {
-        const { labels: list } = await api.saveLabel({
-          latitude: stay.latitude,
-          longitude: stay.longitude,
-          name,
-          placeId,
-        });
-        setLabels(Array.isArray(list) ? list : []);
+        const targets = [stay];
+        if (applyRecurring) {
+          for (const other of stays) {
+            if (other.key === stay.key) continue;
+            if (
+              haversineKm(stay.latitude, stay.longitude, other.latitude, other.longitude) <=
+              LABEL_MATCH_RADIUS_M / 1000
+            ) {
+              targets.push(other);
+            }
+          }
+        }
+        let list = labels;
+        for (const target of targets) {
+          const response = await api.saveLabel({
+            latitude: target.latitude,
+            longitude: target.longitude,
+            name,
+            placeId,
+          });
+          list = Array.isArray(response.labels) ? response.labels : list;
+        }
+        setLabels(list);
       } catch (err) {
         onError?.(err.message);
       }
     },
-    [onError],
+    [onError, stays, labels],
   );
 
   const clearStayLabel = useCallback(
@@ -1045,6 +1073,12 @@ export default function MapView({
           ? null
           : findPlaceLabel(labels, stay.latitude, stay.longitude, LABEL_SUGGEST_RADIUS_M);
         const placeList = places[coordKey(stay.latitude, stay.longitude)];
+        const recurringCount = stays.filter(
+          (other) =>
+            other.key !== stay.key &&
+            haversineKm(stay.latitude, stay.longitude, other.latitude, other.longitude) <=
+              LABEL_MATCH_RADIUS_M / 1000,
+        ).length;
         return (
           <Marker
             key={stay.key}
@@ -1078,7 +1112,10 @@ export default function MapView({
                 assigned={assigned}
                 suggested={suggested}
                 placeList={placeList}
-                onSave={(name, placeId) => saveStayLabel(stay, name, placeId)}
+                recurringCount={recurringCount}
+                onSave={(name, placeId, applyRecurring) =>
+                  saveStayLabel(stay, name, placeId, applyRecurring)
+                }
                 onClear={() => clearStayLabel(stay)}
               />
             </Popup>
