@@ -64,6 +64,7 @@ export default function Dashboard({ user, onLogout }) {
   const [adminOpen, setAdminOpen] = useState(false);
   const [syncingAll, setSyncingAll] = useState(false);
   const [showStats, setShowStats] = useState(true);
+  const [showHeat, setShowHeat] = useState(false);
   const [job, setJob] = useState(null);
   const [health, setHealth] = useState(null);
   const autoSyncDone = useRef(false);
@@ -425,6 +426,8 @@ export default function Dashboard({ user, onLogout }) {
             onShiftDay={shiftDay}
             showStats={showStats}
             onToggleStats={() => setShowStats((value) => !value)}
+            showHeat={showHeat}
+            onToggleHeat={() => setShowHeat((value) => !value)}
           />
           {error && <div className="error banner">{error}</div>}
           {!error && health?.configured && health.sync && health.sync.ok === false && (
@@ -474,6 +477,7 @@ export default function Dashboard({ user, onLogout }) {
               colors={colors}
               showLive={date === toDateInput(new Date())}
               isAdmin={isAdmin}
+              heat={showHeat}
               onPointDeleted={loadTracks}
               onError={setError}
             />

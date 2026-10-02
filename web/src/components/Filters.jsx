@@ -10,6 +10,8 @@ export default function Filters({
   onShiftDay,
   showStats,
   onToggleStats,
+  showHeat,
+  onToggleHeat,
 }) {
   const selected = new Set(selectedIds);
   return (
@@ -65,6 +67,9 @@ export default function Filters({
           <span className="muted">de 00:00 à 24:00</span>
           <button className="btn ghost" onClick={onToggleStats}>
             {showStats ? 'Masquer les stats' : 'Statistiques'}
+          </button>
+          <button className="btn ghost" onClick={onToggleHeat}>
+            {showHeat ? 'Masquer les zones' : 'Zones'}
           </button>
         </div>
       </div>

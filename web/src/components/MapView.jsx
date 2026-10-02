@@ -10,7 +10,8 @@ import {
   useMap,
   useMapEvents,
 } from 'react-leaflet';
-import { divIcon } from 'leaflet';
+import L, { divIcon } from 'leaflet';
+import 'leaflet.heat';
 import { api } from '../api.js';
 import { downloadText, toGPX, toGeoJSON, toKML } from '../exporters.js';
 import {
@@ -110,6 +111,40 @@ function ZoomWatcher({ onChange }) {
   useEffect(() => {
     onChange(map.getZoom());
   }, [map, onChange]);
+
+  return null;
+}
+
+const HEAT_GRADIENT = {
+  0.2: '#2563eb',
+  0.4: '#16a34a',
+  0.6: '#eab308',
+  0.8: '#f97316',
+  1: '#dc2626',
+};
+
+function HeatLayer({ points }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!points || points.length === 0) return undefined;
+    if (!map.getPane('heatPane')) {
+      const pane = map.createPane('heatPane');
+      pane.style.zIndex = 380;
+      pane.style.pointerEvents = 'none';
+    }
+    const layer = L.heatLayer(points, {
+      pane: 'heatPane',
+      radius: 22,
+      blur: 18,
+      minOpacity: 0.35,
+      gradient: HEAT_GRADIENT,
+    });
+    layer.addTo(map);
+    return () => {
+      map.removeLayer(layer);
+    };
+  }, [map, points]);
 
   return null;
 }
@@ -714,6 +749,7 @@ export default function MapView({
   colors,
   showLive = true,
   isAdmin = false,
+  heat = false,
   onPointDeleted,
   onError,
 }) {
@@ -828,6 +864,18 @@ export default function MapView({
     setCursor(range.min);
     setPlaying(true);
   };
+
+  const heatPoints = useMemo(() => {
+    const list = [];
+    for (const track of displayTracks) {
+      for (const point of track.points) {
+        if (Number.isFinite(point.latitude) && Number.isFinite(point.longitude)) {
+          list.push([point.latitude, point.longitude, 1]);
+        }
+      }
+    }
+    return list;
+  }, [displayTracks]);
 
   const stays = useMemo(
     () =>
@@ -1038,6 +1086,8 @@ export default function MapView({
         attribution={activeBasemap.attribution}
         maxZoom={activeBasemap.maxZoom}
       />
+
+      {heat && <HeatLayer points={heatPoints} />}
 
       {visibleTracks.map((track) => {
         const fallbackColor = colors[track.entityId] || '#2563eb';
