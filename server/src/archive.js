@@ -1,5 +1,5 @@
 import { config } from './config.js';
-import { getHaConfig, getFilters, hasEmptyDay, markEmptyDay, clearEmptyDay } from './store.js';
+import { getHaConfig, getFilters, hasEmptyDay, markEmptyDay, clearEmptyDay, writeSetting } from './store.js';
 import { decryptSecret } from './utils/crypto.js';
 import { fetchHistory } from './homeassistant.js';
 import { dayStart, dayEnd, shiftDay, todayString, toDayString } from './dates.js';
@@ -94,6 +94,7 @@ async function doArchive({ force = false, all = false } = {}) {
   startJob('archive', 'Synchronisation', plan.length);
   let archived = 0;
   let failures = 0;
+  let lastError = null;
 
   for (const { dayString, missing, sinceMs } of plan) {
     updateJob({ message: `Jour ${dayString}` });
@@ -113,6 +114,7 @@ async function doArchive({ force = false, all = false } = {}) {
       );
     } catch (err) {
       failures += 1;
+      lastError = err.message;
       console.error(`[archive] ${dayString} échec: ${err.message}`);
       stepJob();
       updateJob({ failures });
@@ -135,6 +137,16 @@ async function doArchive({ force = false, all = false } = {}) {
     stepJob();
     updateJob({ archived, failures });
   }
+
+  const finishedAt = new Date().toISOString();
+  writeSetting('sync_status', {
+    at: finishedAt,
+    ok: failures === 0,
+    archived,
+    failures,
+    message: failures === 0 ? null : lastError || 'Erreur inconnue',
+  });
+  if (failures === 0) writeSetting('sync_last_ok_at', finishedAt);
 
   let cleaned = null;
   if (all) {

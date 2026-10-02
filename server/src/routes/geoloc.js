@@ -7,6 +7,7 @@ import {
   deletedPointsFor,
   listPlaceLabels,
   markPointDeleted,
+  readSetting,
   removePlaceLabel,
   setFilters,
   upsertPlaceLabel,
@@ -102,6 +103,27 @@ router.get('/archive/status', (req, res) => {
 
 router.get('/jobs', (req, res) => {
   res.json({ job: getJob() });
+});
+
+const STALE_AFTER_DAYS = 2;
+
+router.get('/status', (req, res) => {
+  const ha = getHaConfig();
+  const configured = Boolean(ha?.url && ha?.tokenEnc);
+  const sync = readSetting('sync_status') || null;
+  const lastOkAt = readSetting('sync_last_ok_at') || (sync?.ok ? sync.at : null);
+  let staleDays = null;
+  if (lastOkAt) {
+    const time = new Date(lastOkAt).getTime();
+    if (Number.isFinite(time)) staleDays = Math.floor((Date.now() - time) / 86400000);
+  }
+  res.json({
+    configured,
+    sync,
+    lastOkAt,
+    staleDays,
+    stale: !lastOkAt || staleDays == null || staleDays >= STALE_AFTER_DAYS,
+  });
 });
 
 router.delete('/point', requireAdmin, (req, res) => {

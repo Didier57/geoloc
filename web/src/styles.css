@@ -975,6 +975,16 @@ select:focus {
   margin: 8px 16px;
 }
 
+.alert.banner {
+  margin: 8px 16px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--empty-bg);
+  border: 1px solid var(--empty-border);
+  color: var(--empty-fg);
+  font-size: 13px;
+}
+
 .empty.banner {
   margin: 8px 16px;
   padding: 8px 10px;

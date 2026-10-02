@@ -65,6 +65,7 @@ export default function Dashboard({ user, onLogout }) {
   const [syncingAll, setSyncingAll] = useState(false);
   const [showStats, setShowStats] = useState(true);
   const [job, setJob] = useState(null);
+  const [health, setHealth] = useState(null);
   const autoSyncDone = useRef(false);
 
   const loadConfig = useCallback(async () => {
@@ -118,6 +119,22 @@ export default function Dashboard({ user, onLogout }) {
   useEffect(() => {
     if (config?.configured) loadEntities();
   }, [config?.configured, loadEntities]);
+
+  const loadStatus = useCallback(async () => {
+    if (!config?.configured) {
+      setHealth(null);
+      return;
+    }
+    try {
+      setHealth(await api.status());
+    } catch {
+      setHealth(null);
+    }
+  }, [config?.configured]);
+
+  useEffect(() => {
+    loadStatus();
+  }, [loadStatus]);
 
   const loadTracks = useCallback(async () => {
     if (!config?.configured || selectedIds.length === 0) {
@@ -241,6 +258,7 @@ export default function Dashboard({ user, onLogout }) {
     } finally {
       setSyncing(false);
       setJob(null);
+      loadStatus();
     }
   }
 
@@ -264,6 +282,7 @@ export default function Dashboard({ user, onLogout }) {
     } finally {
       setSyncingAll(false);
       setJob(null);
+      loadStatus();
     }
   }
 
@@ -408,6 +427,22 @@ export default function Dashboard({ user, onLogout }) {
             onToggleStats={() => setShowStats((value) => !value)}
           />
           {error && <div className="error banner">{error}</div>}
+          {!error && health?.configured && health.sync && health.sync.ok === false && (
+            <div className="alert banner">
+              Home Assistant injoignable lors de la dernière synchronisation
+              {health.sync.message ? ` : ${health.sync.message}` : '.'}
+            </div>
+          )}
+          {!error &&
+            health?.configured &&
+            (!health.sync || health.sync.ok !== false) &&
+            health.stale && (
+              <div className="alert banner">
+                Aucune synchronisation réussie depuis{' '}
+                {health.staleDays != null ? `${health.staleDays} jour(s)` : 'un moment'}. Vérifiez
+                Home Assistant.
+              </div>
+            )}
           {job?.running && (
             <div className="job-banner">
               <span className="job-label">{job.label}</span>

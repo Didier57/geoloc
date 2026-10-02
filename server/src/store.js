@@ -156,7 +156,7 @@ export function markPointDeleted(entityId, timestamp) {
   );
 }
 
-function readSetting(key) {
+export function readSetting(key) {
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
   if (!row) return null;
   try {
@@ -166,7 +166,7 @@ function readSetting(key) {
   }
 }
 
-function writeSetting(key, value) {
+export function writeSetting(key, value) {
   db.prepare(
     'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
   ).run(key, JSON.stringify(value));
