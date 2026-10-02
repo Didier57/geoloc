@@ -60,6 +60,7 @@ export const api = {
   archiveStatus: () => request('/api/geoloc/archive/status'),
   jobs: () => request('/api/geoloc/jobs'),
   reverse: (lat, lng) => request(`/api/geoloc/reverse?lat=${lat}&lng=${lng}`),
+  search: (q) => request(`/api/geoloc/search?q=${encodeURIComponent(q)}`),
   places: (lat, lng, radius) =>
     request(`/api/geoloc/places?lat=${lat}&lng=${lng}&radius=${radius || 150}`),
   filters: () => request('/api/geoloc/filters'),

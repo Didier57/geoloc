@@ -114,6 +114,77 @@ function ZoomWatcher({ onChange }) {
   return null;
 }
 
+function MapSearch() {
+  const map = useMap();
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [searched, setSearched] = useState(false);
+
+  const run = async (event) => {
+    event.preventDefault();
+    const q = query.trim();
+    if (q.length < 3) return;
+    setBusy(true);
+    setError('');
+    try {
+      const data = await api.search(q);
+      setResults(data.results || []);
+      setSearched(true);
+      setOpen(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const choose = (result) => {
+    map.flyTo([result.latitude, result.longitude], 16);
+    setOpen(false);
+  };
+
+  return (
+    <div className="map-search">
+      <form onSubmit={run}>
+        <input
+          type="search"
+          value={query}
+          placeholder="Rechercher une adresse ou un lieu…"
+          aria-label="Rechercher une adresse ou un lieu"
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setSearched(false);
+          }}
+          onFocus={() => {
+            if (results.length) setOpen(true);
+          }}
+        />
+        <button type="submit" className="btn" disabled={busy || query.trim().length < 3}>
+          {busy ? '…' : 'Aller'}
+        </button>
+      </form>
+      {error && <div className="map-search-note error">{error}</div>}
+      {open && results.length > 0 && (
+        <ul className="map-search-results">
+          {results.map((result, index) => (
+            <li key={`${result.latitude}-${result.longitude}-${index}`}>
+              <button type="button" onClick={() => choose(result)}>
+                {result.name}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {open && !busy && searched && results.length === 0 && (
+        <div className="map-search-note">Aucun résultat.</div>
+      )}
+    </div>
+  );
+}
+
 function coordKey(latitude, longitude) {
   return `${Number(latitude).toFixed(5)},${Number(longitude).toFixed(5)}`;
 }
@@ -1164,6 +1235,8 @@ export default function MapView({
       ))}
 
       <FitBounds tracks={displayTracks} entities={visibleEntities} />
+
+      <MapSearch />
 
       <div className="basemap-control">
         <button

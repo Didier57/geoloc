@@ -13,7 +13,7 @@ import {
 } from '../store.js';
 import { decryptSecret } from '../utils/crypto.js';
 import { fetchStates, mapTrackableEntities } from '../homeassistant.js';
-import { reverseGeocode } from '../geocode.js';
+import { reverseGeocode, searchPlaces } from '../geocode.js';
 import { nearbyPlaces } from '../places.js';
 import { deletePoint, listArchives, readDay } from '../history.js';
 import { dayEnd, dayStart, listDays, todayString, toDayString } from '../dates.js';
@@ -171,6 +171,17 @@ router.delete('/labels', (req, res) => {
     return res.status(400).json({ error: 'invalid_coords', message: 'Coordonnées invalides.' });
   }
   res.json({ labels: removePlaceLabel(latitude, longitude) });
+});
+
+router.get('/search', async (req, res) => {
+  const q = String(req.query.q || '').trim();
+  if (q.length < 3) return res.json({ results: [] });
+  try {
+    const results = await searchPlaces(q);
+    res.json({ results });
+  } catch (err) {
+    res.status(502).json({ error: 'search_failed', message: err.message });
+  }
 });
 
 router.get('/reverse', async (req, res) => {
