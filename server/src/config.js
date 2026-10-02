@@ -17,6 +17,8 @@ export const config = {
   timeZone: process.env.APP_TZ || 'Europe/Paris',
   dataFile: process.env.DATA_FILE || './data/geoloc.json',
   dbFile: process.env.DB_FILE || './data/geoloc.db',
+  dbBackupKeep: Math.max(1, Number(process.env.DB_BACKUP_KEEP || 7)),
+  dbBackupIntervalHours: Math.max(1, Number(process.env.DB_BACKUP_INTERVAL_HOURS || 24)),
   archiveBackfillDays: Math.max(1, Number(process.env.ARCHIVE_BACKFILL_DAYS || 8)),
   stillMaxKmh: Math.max(0, Number(process.env.STILL_MAX_KMH || 2)),
   walkMaxKmh: Math.max(0, Number(process.env.WALK_MAX_KMH || 8)),

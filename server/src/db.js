@@ -75,6 +75,19 @@ export function closeDb() {
   }
 }
 
+export function usersCount() {
+  const row = db.prepare('SELECT COUNT(*) AS n FROM users').get();
+  return Number(row?.n || 0);
+}
+
+export function restoreStateFromJsonIfEmpty() {
+  if (usersCount() > 0 || !existsSync(config.dataFile)) return { restored: false };
+  db.prepare("DELETE FROM settings WHERE key = 'migrated_state'").run();
+  const result = migrateStateFromJson();
+  if (result.migrated) console.log('[db] état restauré depuis geoloc.json');
+  return { restored: result.migrated };
+}
+
 export function migrateStateFromJson() {
   const already = db.prepare("SELECT value FROM settings WHERE key = 'migrated_state'").get();
   if (already || !existsSync(config.dataFile)) return { migrated: false };

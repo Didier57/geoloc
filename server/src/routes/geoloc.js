@@ -123,6 +123,8 @@ router.get('/status', (req, res) => {
     lastOkAt,
     staleDays,
     stale: !lastOkAt || staleDays == null || staleDays >= STALE_AFTER_DAYS,
+    db: readSetting('db_health') || null,
+    backup: readSetting('db_backup_last') || null,
   });
 });
 

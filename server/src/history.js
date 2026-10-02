@@ -36,6 +36,11 @@ function normalizePoint(point) {
   return { timestamp: String(point.timestamp), latitude, longitude };
 }
 
+export function pointsCount() {
+  const row = db.prepare('SELECT COUNT(*) AS n FROM points').get();
+  return Number(row?.n || 0);
+}
+
 export function hasDay(entityId, day) {
   const row = db
     .prepare('SELECT 1 AS present FROM points WHERE entity_id = ? AND day = ? LIMIT 1')
@@ -213,4 +218,25 @@ export function migrateFromJson() {
   db.prepare("INSERT INTO settings (key, value) VALUES ('migrated_json', 'true')").run();
   if (days > 0) console.log(`[history] migration JSON -> SQLite : ${days} jour(s)`);
   return { migrated: days > 0, days };
+}
+
+export function hasJsonHistory() {
+  try {
+    return fs
+      .readdirSync(DIR, { withFileTypes: true })
+      .some((entry) => entry.isDirectory());
+  } catch {
+    return false;
+  }
+}
+
+export function restorePointsFromJsonIfEmpty() {
+  if (pointsCount() > 0 || !hasJsonHistory()) return { restored: false, count: pointsCount() };
+  db.prepare("DELETE FROM settings WHERE key = 'migrated_json'").run();
+  const result = migrateFromJson();
+  const count = pointsCount();
+  if (count > 0) {
+    console.log(`[history] points restaurés depuis les fichiers JSON (${count} points, ${result.days || 0} jour(s))`);
+  }
+  return { restored: count > 0, count, days: result.days || 0 };
 }

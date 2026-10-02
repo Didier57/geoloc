@@ -3,8 +3,10 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import { config } from './config.js';
-import { migrateStateFromJson } from './db.js';
-import { migrateFromJson } from './history.js';
+import { migrateStateFromJson, restoreStateFromJsonIfEmpty } from './db.js';
+import { migrateFromJson, restorePointsFromJsonIfEmpty } from './history.js';
+import { databaseHealth, startDatabaseBackups } from './db-backup.js';
+import { writeSetting } from './store.js';
 import { ensureAdmin } from './bootstrap.js';
 import { startArchiver } from './archive.js';
 import authRoutes from './routes/auth.js';
@@ -50,16 +52,32 @@ app.use((err, req, res, next) => {
 
 app.listen(config.port, () => {
   console.log(`[server] à l'écoute sur le port ${config.port}`);
+
+  const integrity = databaseHealth();
+  try {
+    writeSetting('db_health', { at: new Date().toISOString(), ...integrity });
+  } catch (err) {
+    console.error(`[db] statut de santé non enregistré : ${err.message}`);
+  }
+  if (!integrity.ok) console.error(`[db] integrity_check : ${integrity.message}`);
+
   try {
     migrateStateFromJson();
+    restoreStateFromJsonIfEmpty();
   } catch (err) {
     console.error(`[db] migration état échouée : ${err.message}`);
   }
   try {
     migrateFromJson();
+    restorePointsFromJsonIfEmpty();
   } catch (err) {
     console.error(`[history] migration historique échouée : ${err.message}`);
   }
   ensureAdmin();
   startArchiver();
+  try {
+    startDatabaseBackups();
+  } catch (err) {
+    console.error(`[db] sauvegardes périodiques indisponibles : ${err.message}`);
+  }
 });
