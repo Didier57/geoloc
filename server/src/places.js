@@ -171,6 +171,17 @@ const KIND_LABELS = {
   photo: 'Photographie',
   laundry: 'Pressing',
   dry_cleaning: 'Pressing',
+  company: 'Entreprise',
+  office: 'Bureau',
+  industrial: 'Site industriel',
+  warehouse: 'Entrepôt',
+  retail: 'Commerce',
+  commercial: 'Bâtiment commercial',
+  apartments: 'Immeuble',
+  residential: 'Bâtiment',
+  house: 'Maison',
+  church: 'Église',
+  university: 'Université',
 };
 
 const cache = new Map();
@@ -201,6 +212,9 @@ function buildQuery(lat, lng, radius) {
   nwr${around}["healthcare"];
   nwr${around}["craft"];
   nwr${around}["historic"];
+  nwr${around}["name"]["building"];
+  nwr${around}["name"]["industrial"];
+  nwr${around}["name"]["landuse"];
 );
 out center ${MAX_RESULTS};`;
 }
@@ -215,6 +229,9 @@ function kindOf(tags) {
     tags.craft ||
     tags.historic ||
     tags.office ||
+    tags.building ||
+    tags.industrial ||
+    tags.landuse ||
     null
   );
 }
