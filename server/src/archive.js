@@ -69,23 +69,21 @@ async function doArchive({ force = false, all = false } = {}) {
       const dayString = shiftDay(today, -offset);
       plan.push({ dayString, missing: entityIds, sinceMs: null });
     }
-    plan.push({ dayString: today, missing: entityIds, sinceMs: null });
   } else {
     // Import incremental : pour chaque entite, on ne reinterroge Home Assistant
     // qu'a partir du dernier point deja connu (dernier horodatage en base) au
     // lieu de rebalayer toute la fenetre de rattrapage. Si aucun point n'est
     // connu, on relit la fenetre complete. Les jours sans donnees deja verifies
-    // restent ignores (empty_days).
+    // restent ignores (empty_days). Le jour courant est exclu : il est toujours
+    // lu en direct depuis Home Assistant et sera archive le lendemain.
     const floorMs = dayStart(shiftDay(today, -config.archiveBackfillDays)).getTime();
     for (const id of entityIds) {
       const latest = latestPointMs(id);
       const sinceMs = latest != null ? Math.max(floorMs, latest) : null;
       const fromDay = sinceMs != null ? toDayString(new Date(sinceMs)) : shiftDay(today, -config.archiveBackfillDays);
       let cursor = fromDay;
-      while (cursor <= today) {
-        if (cursor === today) {
-          plan.push({ dayString: cursor, missing: [id], sinceMs });
-        } else if (!hasEmptyDay(id, cursor)) {
+      while (cursor < today) {
+        if (!hasEmptyDay(id, cursor)) {
           plan.push({ dayString: cursor, missing: [id], sinceMs });
         }
         cursor = shiftDay(cursor, 1);
