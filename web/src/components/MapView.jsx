@@ -944,11 +944,6 @@ export default function MapView({
       });
   }, []);
 
-  useEffect(() => {
-    if (zoom < PLACES_MIN_ZOOM) return;
-    stays.forEach((stay) => ensurePlaces(stay.latitude, stay.longitude));
-  }, [zoom, stays, ensurePlaces]);
-
   const saveStayLabel = useCallback(
     async (stay, name, placeId, applyRecurring = false) => {
       try {

@@ -1,5 +1,7 @@
 const DEFAULT_MIRRORS = [
   'https://overpass-api.de/api/interpreter',
+  'https://lz4.overpass-api.de/api/interpreter',
+  'https://z.overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
   'https://overpass.private.coffee/api/interpreter',
 ];
@@ -211,10 +213,10 @@ function buildQuery(lat, lng, radius) {
   const around = `(around:${radius},${lat},${lng})`;
   return `[out:json][timeout:25];
 (
-  nwr${around}["amenity"~"^(${AMENITY_VALUES})$"];
-  nwr${around}["shop"];
-  nwr${around}["tourism"~"^(${TOURISM_VALUES})$"];
-  nwr${around}["leisure"~"^(${LEISURE_VALUES})$"];
+  nwr${around}["name"]["amenity"~"^(${AMENITY_VALUES})$"];
+  nwr${around}["name"]["shop"];
+  nwr${around}["name"]["tourism"~"^(${TOURISM_VALUES})$"];
+  nwr${around}["name"]["leisure"~"^(${LEISURE_VALUES})$"];
   nwr${around}["office"];
   nwr${around}["healthcare"];
   nwr${around}["craft"];
