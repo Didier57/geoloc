@@ -1,6 +1,93 @@
-const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
+const OVERPASS_URL =
+  process.env.OVERPASS_URL || 'https://overpass.kumi.systems/api/interpreter';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-const MAX_RESULTS = 40;
+const MAX_RESULTS = 60;
+
+const AMENITY_VALUES = [
+  'restaurant',
+  'cafe',
+  'bar',
+  'pub',
+  'fast_food',
+  'food_court',
+  'ice_cream',
+  'biergarten',
+  'bakery',
+  'butcher',
+  'cheese',
+  'confectionery',
+  'deli',
+  'greengrocer',
+  'seafood',
+  'supermarket',
+  'convenience',
+  'grocery',
+  'marketplace',
+  'bank',
+  'atm',
+  'bureau_de_change',
+  'pharmacy',
+  'hospital',
+  'clinic',
+  'doctors',
+  'dentist',
+  'veterinary',
+  'fuel',
+  'charging_station',
+  'car_wash',
+  'car_rental',
+  'post_office',
+  'police',
+  'fire_station',
+  'townhall',
+  'school',
+  'kindergarten',
+  'college',
+  'university',
+  'library',
+  'cinema',
+  'theatre',
+  'nightclub',
+  'casino',
+  'arts_centre',
+  'community_centre',
+  'place_of_worship',
+  'drinking_water',
+  'toilets',
+].join('|');
+
+const TOURISM_VALUES = [
+  'hotel',
+  'motel',
+  'hostel',
+  'guest_house',
+  'apartment',
+  'museum',
+  'gallery',
+  'attraction',
+  'viewpoint',
+  'picnic_site',
+  'camp_site',
+  'theme_park',
+  'zoo',
+  'artwork',
+  'information',
+].join('|');
+
+const LEISURE_VALUES = [
+  'park',
+  'garden',
+  'playground',
+  'sports_centre',
+  'fitness_centre',
+  'stadium',
+  'pitch',
+  'swimming_pool',
+  'golf_course',
+  'marina',
+  'dog_park',
+  'nature_reserve',
+].join('|');
 
 const KIND_LABELS = {
   restaurant: 'Restaurant',
@@ -96,24 +183,34 @@ function buildQuery(lat, lng, radius) {
   const around = `(around:${radius},${lat},${lng})`;
   return `[out:json][timeout:25];
 (
-  node${around}["amenity"~"^(restaurant|cafe|bar|pub|fast_food|bakery|ice_cream|supermarket|marketplace|bank|pharmacy|fuel|post_office|hospital|clinic|school|library|cinema|theatre|place_of_worship|dentist|doctors|veterinary|drinking_water)$"];
-  node${around}["shop"];
-  node${around}["tourism"~"^(hotel|guest_house|hostel|museum|attraction|viewpoint)$"];
-  node${around}["leisure"~"^(park|sports_centre|fitness_centre)$"];
+  nwr${around}["amenity"~"^(${AMENITY_VALUES})$"];
+  nwr${around}["shop"];
+  nwr${around}["tourism"~"^(${TOURISM_VALUES})$"];
+  nwr${around}["leisure"~"^(${LEISURE_VALUES})$"];
+  nwr${around}["office"];
+  nwr${around}["healthcare"];
+  nwr${around}["craft"];
+  nwr${around}["historic"];
 );
-out body ${MAX_RESULTS};`;
+out center ${MAX_RESULTS};`;
 }
 
 function kindOf(tags) {
-  if (tags.amenity) return tags.amenity;
-  if (tags.shop) return tags.shop;
-  if (tags.tourism) return tags.tourism;
-  if (tags.leisure) return tags.leisure;
-  return null;
+  return (
+    tags.amenity ||
+    tags.shop ||
+    tags.tourism ||
+    tags.leisure ||
+    tags.healthcare ||
+    tags.craft ||
+    tags.historic ||
+    tags.office ||
+    null
+  );
 }
 
 function labelOf(kind) {
-  if (!kind) return 'Lieu';
+  if (!kind || kind === 'yes' || kind === 'no') return 'Lieu';
   return KIND_LABELS[kind] || kind.replace(/_/g, ' ');
 }
 
@@ -137,18 +234,21 @@ export async function nearbyPlaces(lat, lng, radius) {
     if (!res.ok) throw new Error(`Overpass a répondu ${res.status}`);
     const data = await res.json();
     return (data?.elements || [])
-      .filter((element) => element?.tags?.name && element.lat != null && element.lon != null)
       .map((element) => {
+        const latitude = element.lat ?? element.center?.lat;
+        const longitude = element.lon ?? element.center?.lon;
+        if (!element?.tags?.name || latitude == null || longitude == null) return null;
         const kind = kindOf(element.tags);
         return {
           id: `${element.type}/${element.id}`,
           name: element.tags.name,
           kind,
           label: labelOf(kind),
-          latitude: element.lat,
-          longitude: element.lon,
+          latitude,
+          longitude,
         };
-      });
+      })
+      .filter(Boolean);
   });
 
   cache.set(key, { at: Date.now(), places });

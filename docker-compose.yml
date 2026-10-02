@@ -21,6 +21,7 @@ services:
       ARCHIVE_BACKFILL_DAYS: ${ARCHIVE_BACKFILL_DAYS:-8}
       STILL_MAX_KMH: ${STILL_MAX_KMH:-2}
       WALK_MAX_KMH: ${WALK_MAX_KMH:-8}
+      OVERPASS_URL: ${OVERPASS_URL:-https://overpass.kumi.systems/api/interpreter}
     volumes:
       - geoloc_data:/data
     healthcheck:
