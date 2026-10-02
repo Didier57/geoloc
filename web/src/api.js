@@ -18,12 +18,24 @@ async function parseResponse(res) {
 }
 
 async function request(path, options = {}) {
-  const res = await fetch(path, {
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-    ...options,
-  });
-  return parseResponse(res);
+  const { timeoutMs, ...rest } = options;
+  let timer;
+  let controller;
+  if (timeoutMs) {
+    controller = new AbortController();
+    timer = setTimeout(() => controller.abort(), timeoutMs);
+  }
+  try {
+    const res = await fetch(path, {
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', ...(rest.headers || {}) },
+      ...rest,
+      ...(controller ? { signal: controller.signal } : {}),
+    });
+    return await parseResponse(res);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 export const api = {
@@ -61,10 +73,13 @@ export const api = {
   status: () => request('/api/geoloc/status'),
   jobs: () => request('/api/geoloc/jobs'),
   activity: (limit) => request(`/api/geoloc/activity${limit ? `?limit=${limit}` : ''}`),
-  reverse: (lat, lng) => request(`/api/geoloc/reverse?lat=${lat}&lng=${lng}`),
-  search: (q) => request(`/api/geoloc/search?q=${encodeURIComponent(q)}`),
+  reverse: (lat, lng) =>
+    request(`/api/geoloc/reverse?lat=${lat}&lng=${lng}`, { timeoutMs: 15000 }),
+  search: (q) => request(`/api/geoloc/search?q=${encodeURIComponent(q)}`, { timeoutMs: 15000 }),
   places: (lat, lng, radius) =>
-    request(`/api/geoloc/places?lat=${lat}&lng=${lng}&radius=${radius || 150}`),
+    request(`/api/geoloc/places?lat=${lat}&lng=${lng}&radius=${radius || 150}`, {
+      timeoutMs: 15000,
+    }),
   filters: () => request('/api/geoloc/filters'),
   saveFilters: (payload) =>
     request('/api/geoloc/filters', { method: 'POST', body: JSON.stringify(payload) }),
