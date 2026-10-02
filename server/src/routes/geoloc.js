@@ -235,7 +235,7 @@ router.get('/places', async (req, res) => {
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     return res.status(400).json({ error: 'invalid_coords', message: 'Coordonnées invalides.' });
   }
-  const radius = Math.min(500, Math.max(50, Number(req.query.radius) || 150));
+  const radius = Math.min(1500, Math.max(50, Number(req.query.radius) || 150));
   try {
     const places = await nearbyPlaces(lat, lng, radius);
     res.json({ places });
@@ -250,7 +250,7 @@ router.get('/poi-check', requireAdmin, async (req, res) => {
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     return res.status(400).json({ error: 'invalid_coords', message: 'Coordonnées invalides.' });
   }
-  const radius = Math.min(500, Math.max(50, Number(req.query.radius) || 150));
+  const radius = Math.min(1500, Math.max(50, Number(req.query.radius) || 150));
   const mirrors = await checkMirrors(lat, lng, radius);
   let count = null;
   let error = null;

@@ -36,6 +36,7 @@ const GEOAPIFY_CATEGORIES = [
   'activity',
   'pet',
   'production',
+  'building',
 ].join(',');
 
 const GEOAPIFY_LABELS = {
