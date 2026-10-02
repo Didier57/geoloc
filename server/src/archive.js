@@ -2,8 +2,8 @@ import { config } from './config.js';
 import { getHaConfig, getFilters, hasEmptyDay, markEmptyDay, clearEmptyDay } from './store.js';
 import { decryptSecret } from './utils/crypto.js';
 import { fetchHistory } from './homeassistant.js';
-import { dayStart, dayEnd, shiftDay, todayString } from './dates.js';
-import { hasDay, listArchives, overwriteDay, readDay, saveDay } from './history.js';
+import { dayStart, dayEnd, shiftDay, todayString, toDayString } from './dates.js';
+import { hasDay, latestPointMs, listArchives, overwriteDay, readDay, saveDay } from './history.js';
 import { filterAnomalies } from './motion.js';
 import { finishJob, getJob, startJob, stepJob, updateJob } from './jobs.js';
 
@@ -63,24 +63,56 @@ async function doArchive({ force = false, all = false } = {}) {
 
   const today = todayString();
   const plan = [];
-  for (let offset = config.archiveBackfillDays; offset >= 1; offset -= 1) {
-    const dayString = shiftDay(today, -offset);
-    const missing = force
-      ? entityIds
-      : entityIds.filter((id) => !hasDay(id, dayString) && !hasEmptyDay(id, dayString));
-    if (missing.length > 0) plan.push({ dayString, missing });
+
+  if (force) {
+    for (let offset = config.archiveBackfillDays; offset >= 1; offset -= 1) {
+      const dayString = shiftDay(today, -offset);
+      plan.push({ dayString, missing: entityIds, sinceMs: null });
+    }
+    plan.push({ dayString: today, missing: entityIds, sinceMs: null });
+  } else {
+    // Import incremental : pour chaque entite, on ne reinterroge Home Assistant
+    // qu'a partir du dernier point deja connu (dernier horodatage en base) au
+    // lieu de rebalayer toute la fenetre de rattrapage. Si aucun point n'est
+    // connu, on relit la fenetre complete. Les jours sans donnees deja verifies
+    // restent ignores (empty_days).
+    const floorMs = dayStart(shiftDay(today, -config.archiveBackfillDays)).getTime();
+    for (const id of entityIds) {
+      const latest = latestPointMs(id);
+      const sinceMs = latest != null ? Math.max(floorMs, latest) : null;
+      const fromDay = sinceMs != null ? toDayString(new Date(sinceMs)) : shiftDay(today, -config.archiveBackfillDays);
+      let cursor = fromDay;
+      while (cursor <= today) {
+        if (cursor === today) {
+          plan.push({ dayString: cursor, missing: [id], sinceMs });
+        } else if (!hasEmptyDay(id, cursor)) {
+          plan.push({ dayString: cursor, missing: [id], sinceMs });
+        }
+        cursor = shiftDay(cursor, 1);
+      }
+    }
   }
 
   startJob('archive', 'Synchronisation', plan.length);
   let archived = 0;
   let failures = 0;
 
-  for (const { dayString, missing } of plan) {
+  for (const { dayString, missing, sinceMs } of plan) {
     updateJob({ message: `Jour ${dayString}` });
+
+    const dayStartMs = dayStart(dayString).getTime();
+    let effectiveStartMs = dayStartMs;
+    if (sinceMs != null && sinceMs > dayStartMs) effectiveStartMs = sinceMs;
+    if (force || sinceMs == null) effectiveStartMs = dayStartMs;
 
     let tracks;
     try {
-      tracks = await fetchHistory(cfg, missing, dayStart(dayString).toISOString(), dayEnd(dayString).toISOString());
+      tracks = await fetchHistory(
+        cfg,
+        missing,
+        new Date(effectiveStartMs).toISOString(),
+        dayEnd(dayString).toISOString(),
+      );
     } catch (err) {
       failures += 1;
       console.error(`[archive] ${dayString} échec: ${err.message}`);

@@ -127,8 +127,15 @@ export function listArchives() {
   return result;
 }
 
-export function archivedDays(entityIds) {
-  const result = new Map();
+export function latestPointMs(entityId) {
+  const row = db
+    .prepare('SELECT MAX(timestamp) AS last FROM points WHERE entity_id = ?')
+    .get(String(entityId));
+  const ms = row?.last ? new Date(row.last).getTime() : NaN;
+  return Number.isFinite(ms) ? ms : null;
+}
+
+export function archivedDays(entityIds) {  const result = new Map();
   for (const id of entityIds) {
     const days = db
       .prepare('SELECT DISTINCT day FROM points WHERE entity_id = ?')
