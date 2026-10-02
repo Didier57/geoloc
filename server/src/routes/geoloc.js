@@ -15,7 +15,7 @@ import {
 import { decryptSecret } from '../utils/crypto.js';
 import { fetchStates, mapTrackableEntities } from '../homeassistant.js';
 import { reverseGeocode, searchPlaces } from '../geocode.js';
-import { nearbyPlaces, checkMirrors, providerInfo } from '../places.js';
+import { nearbyPlaces, checkMirrors, checkGeoapify, providerInfo } from '../places.js';
 import { deletePoint, listArchives, readDay } from '../history.js';
 import { dayEnd, dayStart, listDays, todayString, toDayString } from '../dates.js';
 import { config } from '../config.js';
@@ -251,7 +251,8 @@ router.get('/poi-check', requireAdmin, async (req, res) => {
     return res.status(400).json({ error: 'invalid_coords', message: 'Coordonnées invalides.' });
   }
   const radius = Math.min(1500, Math.max(50, Number(req.query.radius) || 150));
-  const mirrors = await checkMirrors(lat, lng, radius);
+  const geoapifyCheck = await checkGeoapify(lat, lng, radius);
+  const mirrors = geoapifyCheck.ok ? [] : await checkMirrors(lat, lng, radius);
   let count = null;
   let error = null;
   try {
@@ -259,7 +260,7 @@ router.get('/poi-check', requireAdmin, async (req, res) => {
   } catch (err) {
     error = err.message;
   }
-  res.json({ lat, lng, radius, ...providerInfo(), count, error, mirrors });
+  res.json({ lat, lng, radius, ...providerInfo(), geoapifyCheck, count, error, mirrors });
 });
 
 export default router;

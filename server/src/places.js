@@ -510,11 +510,33 @@ async function queryGeoapify(lat, lng, radius) {
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const started = Date.now();
   let data;
   try {
+    console.log(`[poi] Geoapify requete lat=${lat} lng=${lng} rayon=${radius}m`);
     const res = await fetch(url, { headers: { Accept: 'application/json' }, signal: controller.signal });
-    if (!res.ok) throw new Error(`Geoapify a répondu ${res.status}`);
+    if (!res.ok) {
+      let body = '';
+      try {
+        body = await res.text();
+      } catch {
+        body = '';
+      }
+      console.warn(
+        `[poi] Geoapify HTTP ${res.status} en ${Date.now() - started} ms : ${body.slice(0, 300)}`,
+      );
+      throw new Error(`Geoapify a répondu ${res.status}`);
+    }
     data = await res.json();
+    const total = Array.isArray(data?.features) ? data.features.length : 0;
+    console.log(
+      `[poi] Geoapify HTTP ${res.status} : ${total} resultat(s) en ${Date.now() - started} ms`,
+    );
+  } catch (err) {
+    if (!/Geoapify a répondu/.test(err.message)) {
+      console.warn(`[poi] Geoapify echec (${describeError(err)}) en ${Date.now() - started} ms`);
+    }
+    throw err;
   } finally {
     clearTimeout(timer);
   }
@@ -538,6 +560,33 @@ async function queryGeoapify(lat, lng, radius) {
       };
     })
     .filter(Boolean);
+}
+
+export async function checkGeoapify(lat, lng, radius = 150) {
+  const started = Date.now();
+  if (!GEOAPIFY_KEY) {
+    return { configured: false, ok: false, count: 0, ms: 0, error: 'GEOAPIFY_KEY non défini', sample: [] };
+  }
+  try {
+    const places = await queryGeoapify(lat, lng, radius);
+    return {
+      configured: true,
+      ok: true,
+      count: places.length,
+      ms: Date.now() - started,
+      error: null,
+      sample: places.slice(0, 5).map((place) => place.name),
+    };
+  } catch (err) {
+    return {
+      configured: true,
+      ok: false,
+      count: 0,
+      ms: Date.now() - started,
+      error: describeError(err),
+      sample: [],
+    };
+  }
 }
 
 export function providerInfo() {
