@@ -80,6 +80,9 @@ export function filterAnomalies(points, options = {}) {
   if (!Array.isArray(points) || points.length < 2) return Array.isArray(points) ? points.slice() : [];
   const maxSpeedKmh = Number(options.maxSpeedKmh) > 0 ? Number(options.maxSpeedKmh) : 200;
   const anomalyMinKm = Number(options.anomalyMinKm) > 0 ? Number(options.anomalyMinKm) : 1;
+  // Seuil (bien plus bas) pour detecter les excursions aller-retour GPS : une
+  // station immobile peut "sauter" de quelques centaines de metres et revenir.
+  const jitterMinKm = Number(options.jitterMinKm) > 0 ? Number(options.jitterMinKm) : 0.15;
   const kept = [points[0]];
   for (let i = 1; i < points.length - 1; i += 1) {
     const point = points[i];
@@ -91,7 +94,7 @@ export function filterAnomalies(points, options = {}) {
     if (distanceKm >= anomalyMinKm && localSpeed != null && localSpeed > maxSpeedKmh) {
       continue;
     }
-    if (isRoundTripSpike(previous, point, next, anomalyMinKm)) continue;
+    if (isRoundTripSpike(previous, point, next, jitterMinKm)) continue;
     kept.push(point);
   }
   kept.push(points[points.length - 1]);
@@ -198,4 +201,23 @@ export function detectStays(
   });
   flush();
   return stays;
+}
+
+// Ramene au centre de l'arret toutes les positions tombant pendant celui-ci.
+// Le GPS qui "se promene" pendant une immobilisation ne doit pas etre vu comme
+// un deplacement (ni sur la carte, ni dans les statistiques).
+export function collapseStays(points, stays) {
+  if (!Array.isArray(points)) return [];
+  if (!Array.isArray(stays) || stays.length === 0) return points.slice();
+  return points.map((point) => {
+    const time = new Date(point.timestamp).getTime();
+    if (!Number.isFinite(time)) return point;
+    const stay = stays.find((item) => {
+      const start = new Date(item.start).getTime();
+      const end = new Date(item.end).getTime();
+      return Number.isFinite(start) && Number.isFinite(end) && time >= start && time <= end;
+    });
+    if (!stay) return point;
+    return { ...point, latitude: stay.latitude, longitude: stay.longitude };
+  });
 }

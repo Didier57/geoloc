@@ -1,6 +1,14 @@
-import { haversineKm } from './motion.js';
+import {
+  collapseStays,
+  detectStays,
+  haversineKm,
+  STAY_MIN_MINUTES,
+  STAY_RADIUS_KM,
+} from './motion.js';
 
 const MODES = ['walk', 'drive', 'still'];
+
+const STAY_OUTLIER_TOLERANCE = 3;
 
 // Fenêtre minimale pour mesurer une vitesse : en dessous, le bruit GPS
 // (déplacement de quelques dizaines de mètres en une seconde) fausse tout.
@@ -22,11 +30,17 @@ export function formatDurationMs(ms) {
 }
 
 export function computeTrackStats(track) {
-  const points = (track?.points || []).filter(
+  const rawPoints = (track?.points || []).filter(
     (point) =>
       point &&
       Number.isFinite(Number(point.latitude)) &&
       Number.isFinite(Number(point.longitude)),
+  );
+  // On ramene au centre les positions prises pendant un arret : sans cela, le
+  // GPS qui derive a l'arret compte comme un trajet (ex. 600 m "en voiture").
+  const points = collapseStays(
+    rawPoints,
+    detectStays(rawPoints, STAY_RADIUS_KM, STAY_MIN_MINUTES, STAY_OUTLIER_TOLERANCE),
   );
 
   const byMode = {};
@@ -52,7 +66,7 @@ export function computeTrackStats(track) {
     const dt = toMs - fromMs;
     const legKm = haversineKm(from.latitude, from.longitude, to.latitude, to.longitude);
     legs[i] = legKm;
-    const mode = byMode[to.mode] ? to.mode : 'unknown';
+    const mode = legKm < 0.001 ? 'still' : byMode[to.mode] ? to.mode : 'unknown';
 
     distanceKm += legKm;
     byMode[mode].distanceKm += legKm;
@@ -96,7 +110,14 @@ export function computeTrackStats(track) {
       .sort((a, b) => a - b);
     return window[Math.floor((window.length - 1) / 2)];
   });
-  const maxSpeed = smoothed.reduce((best, speed) => Math.max(best, speed), 0);
+  const windowMax = smoothed.reduce((best, speed) => Math.max(best, speed), 0);
+
+  // Vitesse moyenne en mouvement : on ne divise que la distance reellement
+  // parcourue en deplacement par le temps passe en deplacement. Utiliser la
+  // distance totale (qui inclut le bruit GPS a l'arret) donnait une moyenne
+  // aberrante, parfois superieure a la vitesse max.
+  const movingDistanceKm = byMode.walk.distanceKm + byMode.drive.distanceKm;
+  const averageSpeedKmh = movingMs > 0 ? movingDistanceKm / (movingMs / 3600000) : 0;
 
   const durationMs = startMs != null && endMs != null ? endMs - startMs : 0;
   return {
@@ -104,8 +125,9 @@ export function computeTrackStats(track) {
     durationMs,
     movingMs,
     stillMs,
-    averageSpeedKmh: movingMs > 0 ? distanceKm / (movingMs / 3600000) : 0,
-    maxSpeedKmh: maxSpeed,
+    movingDistanceKm,
+    averageSpeedKmh,
+    maxSpeedKmh: Math.max(windowMax, averageSpeedKmh),
     byMode,
     pointCount: points.length,
   };
