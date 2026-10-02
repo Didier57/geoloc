@@ -5,6 +5,7 @@ import { fetchHistory } from './homeassistant.js';
 import { dayStart, dayEnd, shiftDay, todayString } from './dates.js';
 import { hasDay, listArchives, overwriteDay, readDay, saveDay } from './history.js';
 import { filterAnomalies } from './motion.js';
+import { finishJob, getJob, startJob, stepJob, updateJob } from './jobs.js';
 
 let timer = null;
 let running = null;
@@ -44,6 +45,7 @@ export function archiveInBackground({ force = false, all = false } = {}) {
   running = doArchive({ force, all })
     .catch((err) => {
       console.error('[archive] erreur en arrière-plan:', err.message);
+      if (getJob().running) finishJob({ message: `Erreur : ${err.message}` });
       return null;
     })
     .finally(() => {
@@ -60,16 +62,21 @@ async function doArchive({ force = false, all = false } = {}) {
   if (entityIds.length === 0) return { archived: 0, skipped: 'no_entities' };
 
   const today = todayString();
-  let archived = 0;
-  let failures = 0;
-
+  const plan = [];
   for (let offset = config.archiveBackfillDays; offset >= 1; offset -= 1) {
     const dayString = shiftDay(today, -offset);
-
     const missing = force
       ? entityIds
       : entityIds.filter((id) => !hasDay(id, dayString) && !hasEmptyDay(id, dayString));
-    if (missing.length === 0) continue;
+    if (missing.length > 0) plan.push({ dayString, missing });
+  }
+
+  startJob('archive', 'Synchronisation', plan.length);
+  let archived = 0;
+  let failures = 0;
+
+  for (const { dayString, missing } of plan) {
+    updateJob({ message: `Jour ${dayString}` });
 
     let tracks;
     try {
@@ -77,6 +84,8 @@ async function doArchive({ force = false, all = false } = {}) {
     } catch (err) {
       failures += 1;
       console.error(`[archive] ${dayString} échec: ${err.message}`);
+      stepJob();
+      updateJob({ failures });
       continue;
     }
 
@@ -93,24 +102,41 @@ async function doArchive({ force = false, all = false } = {}) {
     }
     const mem = Math.round(process.memoryUsage().rss / 1024 / 1024);
     console.log(`[archive] ${dayString}: ${missing.length} entité(s) traitée(s) — ${mem} Mo RSS`);
+    stepJob();
+    updateJob({ archived, failures });
   }
 
-  const cleaned = all ? cleanArchives() : null;
+  let cleaned = null;
+  if (all) {
+    startJob('clean', 'Nettoyage des archives');
+    cleaned = cleanArchives();
+    finishJob({ archived: cleaned.removed, message: `${cleaned.removed} point(s) retiré(s)` });
+    return { archived, failures, cleaned };
+  }
+
+  finishJob({ archived, failures, message: `${archived} jour(s) archivé(s)` });
   return { archived, failures, cleaned };
 }
 
 export function cleanArchives() {
+  const archives = listArchives();
+  const total = archives.reduce((sum, item) => sum + item.days.length, 0);
+  updateJob({ total, done: 0 });
   let days = 0;
   let removed = 0;
-  for (const { entityId, days: dayList } of listArchives()) {
+  for (const { entityId, days: dayList } of archives) {
     for (const day of dayList) {
       const points = readDay(entityId, day);
-      if (points.length === 0) continue;
-      const cleaned = filterAnomalies(points, getFilters() || {});
-      if (cleaned.length === points.length) continue;
-      overwriteDay(entityId, day, cleaned);
-      removed += points.length - cleaned.length;
-      days += 1;
+      if (points.length > 0) {
+        const cleaned = filterAnomalies(points, getFilters() || {});
+        if (cleaned.length !== points.length) {
+          overwriteDay(entityId, day, cleaned);
+          removed += points.length - cleaned.length;
+          days += 1;
+        }
+      }
+      stepJob();
+      updateJob({ archived: removed });
     }
   }
   if (removed > 0) console.log(`[archive] nettoyage: ${removed} point(s) sur ${days} jour(s)`);

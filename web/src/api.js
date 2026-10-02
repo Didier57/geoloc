@@ -58,6 +58,7 @@ export const api = {
       body: JSON.stringify({ force: !!force, all: !!all }),
     }),
   archiveStatus: () => request('/api/geoloc/archive/status'),
+  jobs: () => request('/api/geoloc/jobs'),
   reverse: (lat, lng) => request(`/api/geoloc/reverse?lat=${lat}&lng=${lng}`),
   places: (lat, lng, radius) =>
     request(`/api/geoloc/places?lat=${lat}&lng=${lng}&radius=${radius || 150}`),

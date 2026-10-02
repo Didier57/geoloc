@@ -536,6 +536,54 @@ select:focus {
   font-style: italic;
 }
 
+.job-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 16px 8px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 13px;
+  color: var(--label);
+}
+
+.job-label {
+  font-weight: 600;
+}
+
+.job-message {
+  opacity: 0.8;
+}
+
+.job-progress {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.job-bar {
+  width: 160px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.job-bar i {
+  display: block;
+  height: 100%;
+  background: var(--primary);
+  transition: width 0.3s ease;
+}
+
+.job-count {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .timeline {
   position: absolute;
   bottom: 10px;

@@ -64,6 +64,7 @@ export default function Dashboard({ user, onLogout }) {
   const [adminOpen, setAdminOpen] = useState(false);
   const [syncingAll, setSyncingAll] = useState(false);
   const [showStats, setShowStats] = useState(true);
+  const [job, setJob] = useState(null);
   const autoSyncDone = useRef(false);
 
   const loadConfig = useCallback(async () => {
@@ -218,6 +219,7 @@ export default function Dashboard({ user, onLogout }) {
       await new Promise((resolve) => setTimeout(resolve, 3000));
       try {
         const status = await api.archiveStatus();
+        setJob(status.job || null);
         if (!status.running) return true;
       } catch {
         return false;
@@ -238,6 +240,7 @@ export default function Dashboard({ user, onLogout }) {
       if (err.status !== 409) setError(err.message);
     } finally {
       setSyncing(false);
+      setJob(null);
     }
   }
 
@@ -260,6 +263,7 @@ export default function Dashboard({ user, onLogout }) {
       if (err.status !== 409) setError(err.message);
     } finally {
       setSyncingAll(false);
+      setJob(null);
     }
   }
 
@@ -404,6 +408,26 @@ export default function Dashboard({ user, onLogout }) {
             onToggleStats={() => setShowStats((value) => !value)}
           />
           {error && <div className="error banner">{error}</div>}
+          {job?.running && (
+            <div className="job-banner">
+              <span className="job-label">{job.label}</span>
+              {job.message ? <span className="job-message">{job.message}</span> : null}
+              {job.total > 0 && (
+                <span className="job-progress">
+                  <span className="job-bar">
+                    <i
+                      style={{
+                        width: `${Math.min(100, Math.round((job.done / job.total) * 100))}%`,
+                      }}
+                    />
+                  </span>
+                  <span className="job-count">
+                    {job.done}/{job.total}
+                  </span>
+                </span>
+              )}
+            </div>
+          )}
           {!loading && selectedIds.length > 0 && !hasPoints && (
             <div className="empty banner">Pas de données pour cette date.</div>
           )}

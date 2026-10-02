@@ -19,6 +19,7 @@ import { deletePoint, listArchives, readDay } from '../history.js';
 import { dayEnd, dayStart, listDays, todayString, toDayString } from '../dates.js';
 import { config } from '../config.js';
 import { runArchive, archiveInBackground, isArchiving } from '../archive.js';
+import { getJob } from '../jobs.js';
 import { collectTracks } from '../tracks.js';
 
 const router = Router();
@@ -96,7 +97,11 @@ router.post('/archive', requireConfig, async (req, res) => {
 });
 
 router.get('/archive/status', (req, res) => {
-  res.json({ running: isArchiving() });
+  res.json({ running: isArchiving(), job: getJob() });
+});
+
+router.get('/jobs', (req, res) => {
+  res.json({ job: getJob() });
 });
 
 router.delete('/point', requireAdmin, (req, res) => {
