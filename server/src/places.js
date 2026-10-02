@@ -17,6 +17,7 @@ const MAX_RESULTS = 60;
 
 const GEOAPIFY_KEY = process.env.GEOAPIFY_KEY || '';
 const GEOAPIFY_URL = 'https://api.geoapify.com/v2/places';
+let lastGeoapifyRaw = null;
 const GEOAPIFY_CATEGORIES = [
   'catering',
   'commercial',
@@ -528,12 +529,14 @@ async function queryGeoapify(lat, lng, radius) {
       } catch {
         body = '';
       }
+      lastGeoapifyRaw = `HTTP ${res.status} : ${body.slice(0, 1000)}`;
       console.warn(
         `[poi] Geoapify HTTP ${res.status} en ${Date.now() - started} ms : ${body.slice(0, 300)}`,
       );
       throw new Error(`Geoapify a répondu ${res.status}`);
     }
     data = await res.json();
+    lastGeoapifyRaw = JSON.stringify(data).slice(0, 1000);
     const total = Array.isArray(data?.features) ? data.features.length : 0;
     console.log(
       `[poi] Geoapify HTTP ${res.status} : ${total} resultat(s) en ${Date.now() - started} ms`,
@@ -571,12 +574,35 @@ async function queryGeoapify(lat, lng, radius) {
     .filter(Boolean);
 }
 
+async function probeGeoapify(probeUrl) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const res = await fetch(probeUrl, { headers: { Accept: 'application/json' }, signal: controller.signal });
+    const text = await res.text();
+    let count = null;
+    try {
+      const parsed = JSON.parse(text);
+      count = Array.isArray(parsed?.features) ? parsed.features.length : null;
+    } catch {
+      count = null;
+    }
+    return { status: res.status, count, body: text.slice(0, 500) };
+  } catch (err) {
+    return { status: null, count: null, body: null, error: describeError(err) };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function checkGeoapify(lat, lng, radius = 150) {
   const started = Date.now();
   if (!GEOAPIFY_KEY) {
     return { configured: false, ok: false, count: 0, ms: 0, error: 'GEOAPIFY_KEY non défini', sample: [] };
   }
   const url = geoapifyUrl(lat, lng, radius).replace(GEOAPIFY_KEY, '***');
+  const probeUrl = `${GEOAPIFY_URL}?categories=office&bias=proximity:${lng},${lat}&limit=5&apiKey=${GEOAPIFY_KEY}`;
+  const probe = await probeGeoapify(probeUrl);
   try {
     const places = await queryGeoapify(lat, lng, radius);
     return {
@@ -587,6 +613,8 @@ export async function checkGeoapify(lat, lng, radius = 150) {
       error: null,
       sample: places.slice(0, 5).map((place) => place.name),
       url,
+      raw: lastGeoapifyRaw,
+      probe: { status: probe.status, count: probe.count, body: probe.body, error: probe.error },
     };
   } catch (err) {
     return {
@@ -597,6 +625,8 @@ export async function checkGeoapify(lat, lng, radius = 150) {
       error: describeError(err),
       sample: [],
       url,
+      raw: lastGeoapifyRaw,
+      probe: { status: probe.status, count: probe.count, body: probe.body, error: probe.error },
     };
   }
 }
