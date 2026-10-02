@@ -499,22 +499,28 @@ export async function checkMirrors(lat, lng, radius = 150) {
   return results;
 }
 
+function geoapifyUrl(lat, lng, radius) {
+  return (
+    `${GEOAPIFY_URL}?categories=${GEOAPIFY_CATEGORIES}` +
+    `&filter=circle:${lng},${lat},${radius}` +
+    `&bias=proximity:${lng},${lat}` +
+    `&limit=${MAX_RESULTS}` +
+    `&lang=fr` +
+    `&apiKey=${GEOAPIFY_KEY}`
+  );
+}
+
 async function queryGeoapify(lat, lng, radius) {
-  const url = new URL(GEOAPIFY_URL);
-  url.searchParams.set('categories', GEOAPIFY_CATEGORIES);
-  url.searchParams.set('filter', `circle:${lng},${lat},${radius}`);
-  url.searchParams.set('bias', `proximity:${lng},${lat}`);
-  url.searchParams.set('limit', String(MAX_RESULTS));
-  url.searchParams.set('lang', 'fr');
-  url.searchParams.set('apiKey', GEOAPIFY_KEY);
+  const requestUrl = geoapifyUrl(lat, lng, radius);
+  const maskedUrl = requestUrl.replace(GEOAPIFY_KEY, '***');
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   const started = Date.now();
   let data;
   try {
-    console.log(`[poi] Geoapify requete lat=${lat} lng=${lng} rayon=${radius}m`);
-    const res = await fetch(url, { headers: { Accept: 'application/json' }, signal: controller.signal });
+    console.log(`[poi] Geoapify requete ${maskedUrl}`);
+    const res = await fetch(requestUrl, { headers: { Accept: 'application/json' }, signal: controller.signal });
     if (!res.ok) {
       let body = '';
       try {
@@ -532,6 +538,9 @@ async function queryGeoapify(lat, lng, radius) {
     console.log(
       `[poi] Geoapify HTTP ${res.status} : ${total} resultat(s) en ${Date.now() - started} ms`,
     );
+    if (total === 0) {
+      console.warn(`[poi] Geoapify reponse vide : ${JSON.stringify(data).slice(0, 500)}`);
+    }
   } catch (err) {
     if (!/Geoapify a répondu/.test(err.message)) {
       console.warn(`[poi] Geoapify echec (${describeError(err)}) en ${Date.now() - started} ms`);
@@ -567,6 +576,7 @@ export async function checkGeoapify(lat, lng, radius = 150) {
   if (!GEOAPIFY_KEY) {
     return { configured: false, ok: false, count: 0, ms: 0, error: 'GEOAPIFY_KEY non défini', sample: [] };
   }
+  const url = geoapifyUrl(lat, lng, radius).replace(GEOAPIFY_KEY, '***');
   try {
     const places = await queryGeoapify(lat, lng, radius);
     return {
@@ -576,6 +586,7 @@ export async function checkGeoapify(lat, lng, radius = 150) {
       ms: Date.now() - started,
       error: null,
       sample: places.slice(0, 5).map((place) => place.name),
+      url,
     };
   } catch (err) {
     return {
@@ -585,6 +596,7 @@ export async function checkGeoapify(lat, lng, radius = 150) {
       ms: Date.now() - started,
       error: describeError(err),
       sample: [],
+      url,
     };
   }
 }
