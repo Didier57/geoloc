@@ -1,3 +1,5 @@
+import { haversineKm } from './motion.js';
+
 const DEFAULT_MIRRORS = [
   'https://overpass-api.de/api/interpreter',
   'https://lz4.overpass-api.de/api/interpreter',
@@ -18,7 +20,7 @@ const MAX_RESULTS = 60;
 const GEOAPIFY_KEY = process.env.GEOAPIFY_KEY || '';
 const GEOAPIFY_URL = 'https://api.geoapify.com/v2/places';
 let lastGeoapifyRaw = null;
-const GEOAPIFY_CATEGORIES = [
+const GEOAPIFY_CATEGORY_LIST = [
   'catering',
   'commercial',
   'healthcare',
@@ -38,7 +40,8 @@ const GEOAPIFY_CATEGORIES = [
   'pet',
   'production',
   'building',
-].join(',');
+];
+const GEOAPIFY_CATEGORIES = GEOAPIFY_CATEGORY_LIST.join(',');
 
 const GEOAPIFY_LABELS = {
   restaurant: 'Restaurant',
@@ -500,36 +503,63 @@ export async function checkMirrors(lat, lng, radius = 150) {
   return results;
 }
 
-function geoapifyUrlCandidates(lat, lng, radius) {
+function geoapifyStrategies(lat, lng, radius) {
   const base = `${GEOAPIFY_URL}?categories=${GEOAPIFY_CATEGORIES}`;
   const tail = `limit=${MAX_RESULTS}&lang=fr&apiKey=${GEOAPIFY_KEY}`;
+  const apiKeyUrl = `${GEOAPIFY_URL}?apiKey=${GEOAPIFY_KEY}`;
   return [
     {
+      label: 'post-circle',
+      method: 'POST',
+      url: apiKeyUrl,
+      body: {
+        categories: GEOAPIFY_CATEGORY_LIST,
+        filter: { type: 'circle', lon: Number(lng), lat: Number(lat), radius: Number(radius) },
+        limit: MAX_RESULTS,
+        lang: 'fr',
+      },
+    },
+    {
+      label: 'post-proximity',
+      method: 'POST',
+      url: apiKeyUrl,
+      body: {
+        categories: GEOAPIFY_CATEGORY_LIST,
+        bias: { type: 'proximity', lon: Number(lng), lat: Number(lat) },
+        limit: MAX_RESULTS,
+        lang: 'fr',
+      },
+    },
+    { label: 'bias-circle', method: 'GET', url: `${base}&bias=circle:${lng},${lat},${radius}&${tail}` },
+    { label: 'bias-seul', method: 'GET', url: `${base}&bias=proximity:${lng},${lat}&${tail}` },
+    {
       label: 'filter+bias',
+      method: 'GET',
       url: `${base}&filter=circle:${lng},${lat},${radius}&bias=proximity:${lng},${lat}&${tail}`,
     },
-    { label: 'bias-seul', url: `${base}&bias=proximity:${lng},${lat}&${tail}` },
-    { label: 'filter-seul', url: `${base}&filter=circle:${lng},${lat},${radius}&${tail}` },
-    {
-      label: 'bias-circle',
-      url: `${base}&bias=circle:${lng},${lat},${radius}&${tail}`,
-    },
+    { label: 'filter-seul', method: 'GET', url: `${base}&filter=circle:${lng},${lat},${radius}&${tail}` },
   ];
 }
 
 function geoapifyUrl(lat, lng, radius) {
-  return geoapifyUrlCandidates(lat, lng, radius)[0].url;
+  return geoapifyStrategies(lat, lng, radius)[0].url;
 }
 
-async function requestGeoapifyJson(requestUrl) {
+async function requestGeoapifyJson(strategy) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   const started = Date.now();
   try {
-    const res = await fetch(requestUrl, {
+    const options = {
+      method: strategy.method,
       headers: { Accept: 'application/json' },
       signal: controller.signal,
-    });
+    };
+    if (strategy.method === 'POST') {
+      options.headers['Content-Type'] = 'application/json';
+      options.body = JSON.stringify(strategy.body);
+    }
+    const res = await fetch(strategy.url, options);
     const text = await res.text();
     let data = null;
     try {
@@ -540,7 +570,7 @@ async function requestGeoapifyJson(requestUrl) {
     lastGeoapifyRaw = `${res.ok ? '' : `HTTP ${res.status} `}${text.slice(0, 1000)}`;
     const total = Array.isArray(data?.features) ? data.features.length : 0;
     console.log(
-      `[poi] Geoapify HTTP ${res.status} : ${total} resultat(s) en ${Date.now() - started} ms`,
+      `[poi] Geoapify ${strategy.label} HTTP ${res.status} : ${total} resultat(s) en ${Date.now() - started} ms`,
     );
     if (!res.ok) throw new Error(`Geoapify a répondu ${res.status}`);
     return data;
@@ -549,7 +579,8 @@ async function requestGeoapifyJson(requestUrl) {
   }
 }
 
-function mapGeoapify(data, radius) {
+function mapGeoapify(data, lat, lng, radius) {
+  const cap = Number(radius);
   return (data?.features || [])
     .map((feature) => {
       const props = feature?.properties || {};
@@ -558,8 +589,8 @@ function mapGeoapify(data, radius) {
       const latitude = props.lat ?? coords[1];
       const name = props.name || props.address_line1;
       if (!name || latitude == null || longitude == null) return null;
-      const distance = Number(props.distance);
-      if (Number.isFinite(distance) && distance > radius) return null;
+      const distanceM = haversineKm(lat, lng, latitude, longitude) * 1000;
+      if (Number.isFinite(cap) && distanceM > cap) return null;
       const kind = geoapifyKind(props.categories);
       return {
         id: props.place_id || `${longitude},${latitude}`,
@@ -568,35 +599,42 @@ function mapGeoapify(data, radius) {
         label: labelOf(kind),
         latitude,
         longitude,
+        distanceM: Math.round(distanceM),
       };
     })
-    .filter(Boolean);
+    .filter(Boolean)
+    .sort((a, b) => a.distanceM - b.distanceM);
 }
 
 async function queryGeoapify(lat, lng, radius) {
-  const candidates = geoapifyUrlCandidates(lat, lng, radius);
+  const strategies = geoapifyStrategies(lat, lng, radius);
   let lastError = null;
-  for (const candidate of candidates) {
-    const masked = candidate.url.replace(GEOAPIFY_KEY, '***');
-    console.log(`[poi] Geoapify requete (${candidate.label}) ${masked}`);
+  for (const strategy of strategies) {
+    const masked = strategy.url.replace(GEOAPIFY_KEY, '***');
+    console.log(`[poi] Geoapify requete (${strategy.label}) ${masked}`);
     try {
-      const data = await requestGeoapifyJson(candidate.url);
-      const places = mapGeoapify(data, radius);
+      const data = await requestGeoapifyJson(strategy);
+      const places = mapGeoapify(data, lat, lng, radius);
       if (places.length > 0) return places;
     } catch (err) {
       lastError = err;
-      console.warn(`[poi] Geoapify (${candidate.label}) echec : ${describeError(err)}`);
+      console.warn(`[poi] Geoapify (${strategy.label}) echec : ${describeError(err)}`);
     }
   }
   if (lastError) throw lastError;
   return [];
 }
 
-async function probeGeoapify(probeUrl) {
+async function probeGeoapify(strategy) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
-    const res = await fetch(probeUrl, { headers: { Accept: 'application/json' }, signal: controller.signal });
+    const options = { method: strategy.method, headers: { Accept: 'application/json' }, signal: controller.signal };
+    if (strategy.method === 'POST') {
+      options.headers['Content-Type'] = 'application/json';
+      options.body = JSON.stringify(strategy.body);
+    }
+    const res = await fetch(strategy.url, options);
     const text = await res.text();
     let count = null;
     try {
@@ -605,7 +643,7 @@ async function probeGeoapify(probeUrl) {
     } catch {
       count = null;
     }
-    return { status: res.status, count, body: text.slice(0, 500) };
+    return { status: res.status, count, body: text.slice(0, 200) };
   } catch (err) {
     return { status: null, count: null, body: null, error: describeError(err) };
   } finally {
@@ -618,13 +656,13 @@ export async function checkGeoapify(lat, lng, radius = 150) {
   if (!GEOAPIFY_KEY) {
     return { configured: false, ok: false, count: 0, ms: 0, error: 'GEOAPIFY_KEY non défini', sample: [] };
   }
-  const candidates = geoapifyUrlCandidates(lat, lng, radius);
-  const url = candidates[0].url.replace(GEOAPIFY_KEY, '***');
+  const strategies = geoapifyStrategies(lat, lng, radius);
+  const url = strategies[0].url.replace(GEOAPIFY_KEY, '***');
   const probes = [];
-  for (const candidate of candidates) {
-    const probe = await probeGeoapify(candidate.url);
+  for (const strategy of strategies) {
+    const probe = await probeGeoapify(strategy);
     probes.push({
-      label: candidate.label,
+      label: strategy.label,
       status: probe.status,
       count: probe.count,
       error: probe.error || null,
@@ -638,7 +676,7 @@ export async function checkGeoapify(lat, lng, radius = 150) {
       count: places.length,
       ms: Date.now() - started,
       error: null,
-      sample: places.slice(0, 5).map((place) => place.name),
+      sample: places.slice(0, 8).map((place) => `${place.name} (${place.distanceM} m)`),
       url,
       raw: lastGeoapifyRaw,
       probes,
