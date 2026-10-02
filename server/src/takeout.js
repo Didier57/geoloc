@@ -2,12 +2,70 @@ import { Unzip, UnzipInflate } from 'fflate';
 import { readDay, saveDay } from './history.js';
 import { clearEmptyDay } from './store.js';
 import { toDayString } from './dates.js';
+import { haversineKm } from './motion.js';
 
 const MAX_JSON_ENTRY_BYTES = 400 * 1024 * 1024;
 const MAX_LISTED_ENTRIES = 200;
 const MAX_SKIPPED_ENTRIES = 50;
 const MAX_SCAN_NODES = 5000000;
 const MAX_SCAN_DEPTH = 20;
+
+// Déduplication à l'import : deux points à moins de 5 s et 50 m l'un de l'autre
+// sont considérés comme le même lieu (bruit GPS, recouvrement Google/HA, ou
+// ré-import du même fichier avec un horodatage légèrement différent).
+const DEDUPE_WINDOW_MS = 5000;
+const DEDUPE_RADIUS_KM = 0.05;
+
+function buildTimeIndex(points) {
+  const buckets = new Map();
+  for (const point of points) {
+    const time = new Date(point?.timestamp).getTime();
+    if (!Number.isFinite(time)) continue;
+    const key = Math.floor(time / DEDUPE_WINDOW_MS);
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push({
+      time,
+      latitude: Number(point.latitude),
+      longitude: Number(point.longitude),
+    });
+  }
+  return buckets;
+}
+
+function addToTimeIndex(buckets, point) {
+  const time = new Date(point?.timestamp).getTime();
+  if (!Number.isFinite(time)) return;
+  const key = Math.floor(time / DEDUPE_WINDOW_MS);
+  if (!buckets.has(key)) buckets.set(key, []);
+  buckets.get(key).push({
+    time,
+    latitude: Number(point.latitude),
+    longitude: Number(point.longitude),
+  });
+}
+
+function isDuplicate(buckets, point) {
+  const time = new Date(point?.timestamp).getTime();
+  const latitude = Number(point.latitude);
+  const longitude = Number(point.longitude);
+  if (!Number.isFinite(time) || !Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return false;
+  }
+  const base = Math.floor(time / DEDUPE_WINDOW_MS);
+  for (let key = base - 1; key <= base + 1; key += 1) {
+    const bucket = buckets.get(key);
+    if (!bucket) continue;
+    for (const other of bucket) {
+      if (
+        Math.abs(time - other.time) <= DEDUPE_WINDOW_MS &&
+        haversineKm(latitude, longitude, other.latitude, other.longitude) <= DEDUPE_RADIUS_KM
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
 
 const SKIP_KEYS = new Set([
   'wifiScan',
@@ -485,11 +543,23 @@ export function importTakeout({ entityId, buffer, from, to }) {
   }
 
   for (const [day, points] of [...byDay.entries()].sort(([a], [b]) => a.localeCompare(b))) {
-    const before = readDay(entityId, day).length;
-    const total = saveDay(entityId, day, points);
+    const existing = readDay(entityId, day);
+    const buckets = buildTimeIndex(existing);
+    const kept = [];
+    let nearDuplicates = 0;
+    for (const point of points) {
+      if (isDuplicate(buckets, point)) {
+        nearDuplicates += 1;
+        continue;
+      }
+      kept.push(point);
+      addToTimeIndex(buckets, point);
+    }
+    const before = existing.length;
+    const total = saveDay(entityId, day, kept);
     const inserted = Math.max(0, total - before);
     stats.added += inserted;
-    stats.duplicates += Math.max(0, points.length - inserted);
+    stats.duplicates += nearDuplicates + Math.max(0, kept.length - inserted);
     stats.days += 1;
     clearEmptyDay(entityId, day);
   }
