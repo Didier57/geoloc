@@ -500,59 +500,56 @@ export async function checkMirrors(lat, lng, radius = 150) {
   return results;
 }
 
-function geoapifyUrl(lat, lng, radius) {
-  return (
-    `${GEOAPIFY_URL}?categories=${GEOAPIFY_CATEGORIES}` +
-    `&filter=circle:${lng},${lat},${radius}` +
-    `&bias=proximity:${lng},${lat}` +
-    `&limit=${MAX_RESULTS}` +
-    `&lang=fr` +
-    `&apiKey=${GEOAPIFY_KEY}`
-  );
+function geoapifyUrlCandidates(lat, lng, radius) {
+  const base = `${GEOAPIFY_URL}?categories=${GEOAPIFY_CATEGORIES}`;
+  const tail = `limit=${MAX_RESULTS}&lang=fr&apiKey=${GEOAPIFY_KEY}`;
+  return [
+    {
+      label: 'filter+bias',
+      url: `${base}&filter=circle:${lng},${lat},${radius}&bias=proximity:${lng},${lat}&${tail}`,
+    },
+    { label: 'bias-seul', url: `${base}&bias=proximity:${lng},${lat}&${tail}` },
+    { label: 'filter-seul', url: `${base}&filter=circle:${lng},${lat},${radius}&${tail}` },
+    {
+      label: 'bias-circle',
+      url: `${base}&bias=circle:${lng},${lat},${radius}&${tail}`,
+    },
+  ];
 }
 
-async function queryGeoapify(lat, lng, radius) {
-  const requestUrl = geoapifyUrl(lat, lng, radius);
-  const maskedUrl = requestUrl.replace(GEOAPIFY_KEY, '***');
+function geoapifyUrl(lat, lng, radius) {
+  return geoapifyUrlCandidates(lat, lng, radius)[0].url;
+}
 
+async function requestGeoapifyJson(requestUrl) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   const started = Date.now();
-  let data;
   try {
-    console.log(`[poi] Geoapify requete ${maskedUrl}`);
-    const res = await fetch(requestUrl, { headers: { Accept: 'application/json' }, signal: controller.signal });
-    if (!res.ok) {
-      let body = '';
-      try {
-        body = await res.text();
-      } catch {
-        body = '';
-      }
-      lastGeoapifyRaw = `HTTP ${res.status} : ${body.slice(0, 1000)}`;
-      console.warn(
-        `[poi] Geoapify HTTP ${res.status} en ${Date.now() - started} ms : ${body.slice(0, 300)}`,
-      );
-      throw new Error(`Geoapify a répondu ${res.status}`);
+    const res = await fetch(requestUrl, {
+      headers: { Accept: 'application/json' },
+      signal: controller.signal,
+    });
+    const text = await res.text();
+    let data = null;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = null;
     }
-    data = await res.json();
-    lastGeoapifyRaw = JSON.stringify(data).slice(0, 1000);
+    lastGeoapifyRaw = `${res.ok ? '' : `HTTP ${res.status} `}${text.slice(0, 1000)}`;
     const total = Array.isArray(data?.features) ? data.features.length : 0;
     console.log(
       `[poi] Geoapify HTTP ${res.status} : ${total} resultat(s) en ${Date.now() - started} ms`,
     );
-    if (total === 0) {
-      console.warn(`[poi] Geoapify reponse vide : ${JSON.stringify(data).slice(0, 500)}`);
-    }
-  } catch (err) {
-    if (!/Geoapify a répondu/.test(err.message)) {
-      console.warn(`[poi] Geoapify echec (${describeError(err)}) en ${Date.now() - started} ms`);
-    }
-    throw err;
+    if (!res.ok) throw new Error(`Geoapify a répondu ${res.status}`);
+    return data;
   } finally {
     clearTimeout(timer);
   }
+}
 
+function mapGeoapify(data, radius) {
   return (data?.features || [])
     .map((feature) => {
       const props = feature?.properties || {};
@@ -561,6 +558,8 @@ async function queryGeoapify(lat, lng, radius) {
       const latitude = props.lat ?? coords[1];
       const name = props.name || props.address_line1;
       if (!name || latitude == null || longitude == null) return null;
+      const distance = Number(props.distance);
+      if (Number.isFinite(distance) && distance > radius) return null;
       const kind = geoapifyKind(props.categories);
       return {
         id: props.place_id || `${longitude},${latitude}`,
@@ -572,6 +571,25 @@ async function queryGeoapify(lat, lng, radius) {
       };
     })
     .filter(Boolean);
+}
+
+async function queryGeoapify(lat, lng, radius) {
+  const candidates = geoapifyUrlCandidates(lat, lng, radius);
+  let lastError = null;
+  for (const candidate of candidates) {
+    const masked = candidate.url.replace(GEOAPIFY_KEY, '***');
+    console.log(`[poi] Geoapify requete (${candidate.label}) ${masked}`);
+    try {
+      const data = await requestGeoapifyJson(candidate.url);
+      const places = mapGeoapify(data, radius);
+      if (places.length > 0) return places;
+    } catch (err) {
+      lastError = err;
+      console.warn(`[poi] Geoapify (${candidate.label}) echec : ${describeError(err)}`);
+    }
+  }
+  if (lastError) throw lastError;
+  return [];
 }
 
 async function probeGeoapify(probeUrl) {
@@ -600,9 +618,18 @@ export async function checkGeoapify(lat, lng, radius = 150) {
   if (!GEOAPIFY_KEY) {
     return { configured: false, ok: false, count: 0, ms: 0, error: 'GEOAPIFY_KEY non défini', sample: [] };
   }
-  const url = geoapifyUrl(lat, lng, radius).replace(GEOAPIFY_KEY, '***');
-  const probeUrl = `${GEOAPIFY_URL}?categories=office&bias=proximity:${lng},${lat}&limit=5&apiKey=${GEOAPIFY_KEY}`;
-  const probe = await probeGeoapify(probeUrl);
+  const candidates = geoapifyUrlCandidates(lat, lng, radius);
+  const url = candidates[0].url.replace(GEOAPIFY_KEY, '***');
+  const probes = [];
+  for (const candidate of candidates) {
+    const probe = await probeGeoapify(candidate.url);
+    probes.push({
+      label: candidate.label,
+      status: probe.status,
+      count: probe.count,
+      error: probe.error || null,
+    });
+  }
   try {
     const places = await queryGeoapify(lat, lng, radius);
     return {
@@ -614,7 +641,7 @@ export async function checkGeoapify(lat, lng, radius = 150) {
       sample: places.slice(0, 5).map((place) => place.name),
       url,
       raw: lastGeoapifyRaw,
-      probe: { status: probe.status, count: probe.count, body: probe.body, error: probe.error },
+      probes,
     };
   } catch (err) {
     return {
@@ -626,7 +653,7 @@ export async function checkGeoapify(lat, lng, radius = 150) {
       sample: [],
       url,
       raw: lastGeoapifyRaw,
-      probe: { status: probe.status, count: probe.count, body: probe.body, error: probe.error },
+      probes,
     };
   }
 }
