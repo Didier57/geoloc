@@ -8,15 +8,16 @@ Liste de suggestions d'amélioration pour geoloc. Coche au fur et à mesure.
 - [x] 2. Import Home Assistant incrémental (delta depuis le dernier point connu)
 - [x] 3. Suivi de progression des jobs de fond (archivage / nettoyage)
 - [x] 10. Stats déplacées dans le paquet `shared/` (source unique)
+- [x] 4. Recherche d'adresse / lieu sur la carte (géocodage direct + zoom)
+- [x] 5. Déduplication robuste à l'import (5 s / 50 m, re-import Google)
+- [x] 7. Alertes Home Assistant si HA injoignable ou aucune synchro depuis N jours
+- [x] 8. Robustesse SQLite : sauvegarde automatique + restauration depuis les JSON
+- [x] 9. Carte de chaleur des zones les plus visitées
+- [x] 10. Journal d'activité dans l'UI (dernières synchros, échecs, imports)
 
-## À faire (lot en cours : 4, 5, 7, 8, 9, 10)
+## À faire
 
-- [ ] 4. Recherche d'adresse / lieu sur la carte (géocodage direct + zoom)
-- [ ] 5. Déduplication robuste à l'import (re-import Google, timestamps en double)
-- [ ] 7. Alertes Home Assistant si HA injoignable ou aucune synchro depuis N jours
-- [ ] 8. Robustesse SQLite : fallback JSON auto si la base ne s'ouvre pas + sauvegarde périodique
-- [ ] 9. Carte de chaleur des zones les plus visitées
-- [ ] 10. Journal d'activité dans l'UI (dernières synchros, échecs, imports)
+_(rien pour l'instant)_
 
 ## Idées non retenues pour l'instant
 
