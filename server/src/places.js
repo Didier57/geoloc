@@ -1,5 +1,15 @@
-const OVERPASS_URL =
-  process.env.OVERPASS_URL || 'https://overpass.kumi.systems/api/interpreter';
+const DEFAULT_MIRRORS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass.private.coffee/api/interpreter',
+];
+
+const OVERPASS_MIRRORS = [
+  ...(process.env.OVERPASS_URL ? [process.env.OVERPASS_URL] : []),
+  ...DEFAULT_MIRRORS,
+].filter((url, index, list) => list.indexOf(url) === index);
+
+const REQUEST_TIMEOUT_MS = 10000;
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_RESULTS = 60;
 
@@ -214,42 +224,95 @@ function labelOf(kind) {
   return KIND_LABELS[kind] || kind.replace(/_/g, ' ');
 }
 
+async function queryMirror(mirror, query, signal) {
+  const res = await fetch(mirror, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'User-Agent': 'geoloc-app/1.0 (https://github.com/Didier57/geoloc)',
+      Accept: 'application/json',
+    },
+    body: `data=${encodeURIComponent(query)}`,
+    signal,
+  });
+  if (!res.ok) throw new Error(`Overpass a répondu ${res.status}`);
+  const data = await res.json();
+  return (data?.elements || [])
+    .map((element) => {
+      const latitude = element.lat ?? element.center?.lat;
+      const longitude = element.lon ?? element.center?.lon;
+      if (!element?.tags?.name || latitude == null || longitude == null) return null;
+      const kind = kindOf(element.tags);
+      return {
+        id: `${element.type}/${element.id}`,
+        name: element.tags.name,
+        kind,
+        label: labelOf(kind),
+        latitude,
+        longitude,
+      };
+    })
+    .filter(Boolean);
+}
+
+function queryMirrors(query) {
+  return new Promise((resolve, reject) => {
+    if (OVERPASS_MIRRORS.length === 0) {
+      reject(new Error('Overpass indisponible'));
+      return;
+    }
+
+    const controller = new AbortController();
+    let pending = OVERPASS_MIRRORS.length;
+    let emptyResult = null;
+    let lastError = null;
+    let settled = false;
+
+    const finish = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      controller.abort();
+      callback(value);
+    };
+
+    const timer = setTimeout(() => {
+      if (emptyResult) finish(resolve, emptyResult);
+      else finish(reject, lastError || new Error('Overpass indisponible'));
+    }, REQUEST_TIMEOUT_MS);
+
+    for (const mirror of OVERPASS_MIRRORS) {
+      queryMirror(mirror, query, controller.signal)
+        .then((list) => {
+          if (settled) return;
+          if (list.length > 0) {
+            finish(resolve, list);
+            return;
+          }
+          if (!emptyResult) emptyResult = list;
+          pending -= 1;
+          if (pending === 0) finish(resolve, emptyResult || []);
+        })
+        .catch((err) => {
+          lastError = err;
+          if (settled) return;
+          pending -= 1;
+          if (pending === 0) {
+            if (emptyResult) finish(resolve, emptyResult);
+            else finish(reject, lastError || new Error('Overpass indisponible'));
+          }
+        });
+    }
+  });
+}
+
 export async function nearbyPlaces(lat, lng, radius) {
   const key = `${Number(lat).toFixed(5)},${Number(lng).toFixed(5)},${radius}`;
   const cached = cache.get(key);
   if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.places;
 
   const query = buildQuery(lat, lng, radius);
-
-  const places = await schedule(async () => {
-    const res = await fetch(OVERPASS_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'User-Agent': 'geoloc-app/1.0 (https://github.com/Didier57/geoloc)',
-        Accept: 'application/json',
-      },
-      body: `data=${encodeURIComponent(query)}`,
-    });
-    if (!res.ok) throw new Error(`Overpass a répondu ${res.status}`);
-    const data = await res.json();
-    return (data?.elements || [])
-      .map((element) => {
-        const latitude = element.lat ?? element.center?.lat;
-        const longitude = element.lon ?? element.center?.lon;
-        if (!element?.tags?.name || latitude == null || longitude == null) return null;
-        const kind = kindOf(element.tags);
-        return {
-          id: `${element.type}/${element.id}`,
-          name: element.tags.name,
-          kind,
-          label: labelOf(kind),
-          latitude,
-          longitude,
-        };
-      })
-      .filter(Boolean);
-  });
+  const places = await schedule(() => queryMirrors(query));
 
   cache.set(key, { at: Date.now(), places });
   return places;
