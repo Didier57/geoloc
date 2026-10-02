@@ -935,8 +935,12 @@ export default function MapView({
       })
       .catch((err) => {
         placesErrors.current.set(key, true);
+        const message =
+          err?.name === 'AbortError'
+            ? 'Délai dépassé : le serveur n’a pas répondu (Overpass lent ou injoignable).'
+            : err?.message || 'POI indisponibles';
         setPlaces((prev) => ({ ...prev, [key]: [] }));
-        setPlacesError((prev) => ({ ...prev, [key]: err?.message || 'POI indisponibles' }));
+        setPlacesError((prev) => ({ ...prev, [key]: message }));
       });
   }, []);
 

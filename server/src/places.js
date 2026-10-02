@@ -186,18 +186,25 @@ const KIND_LABELS = {
 
 const cache = new Map();
 
-let chain = Promise.resolve();
-let lastCall = 0;
+const MAX_CONCURRENT = 4;
+let active = 0;
+const waiting = [];
 
-function schedule(task) {
-  const result = chain.then(async () => {
-    const wait = Math.max(0, 1000 - (Date.now() - lastCall));
-    if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
-    lastCall = Date.now();
-    return task();
+function withLimit(task) {
+  return new Promise((resolve, reject) => {
+    const run = () => {
+      active += 1;
+      task()
+        .then(resolve, reject)
+        .finally(() => {
+          active -= 1;
+          const next = waiting.shift();
+          if (next) next();
+        });
+    };
+    if (active < MAX_CONCURRENT) run();
+    else waiting.push(run);
   });
-  chain = result.catch(() => {});
-  return result;
 }
 
 function buildQuery(lat, lng, radius) {
@@ -361,7 +368,7 @@ export async function nearbyPlaces(lat, lng, radius) {
   if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.places;
 
   const query = buildQuery(lat, lng, radius);
-  const places = await schedule(() => queryMirrors(query));
+  const places = await withLimit(() => queryMirrors(query));
 
   cache.set(key, { at: Date.now(), places });
   return places;
