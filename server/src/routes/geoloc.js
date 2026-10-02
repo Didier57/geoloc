@@ -15,7 +15,6 @@ import {
 import { decryptSecret } from '../utils/crypto.js';
 import { fetchStates, mapTrackableEntities } from '../homeassistant.js';
 import { reverseGeocode, searchPlaces } from '../geocode.js';
-import { nearbyPlaces, checkMirrors, checkGeoapify, providerInfo } from '../places.js';
 import { deletePoint, listArchives, readDay } from '../history.js';
 import { dayEnd, dayStart, listDays, todayString, toDayString } from '../dates.js';
 import { config } from '../config.js';
@@ -227,40 +226,6 @@ router.get('/reverse', async (req, res) => {
   } catch (err) {
     res.status(502).json({ error: 'geocode_failed', message: err.message });
   }
-});
-
-router.get('/places', async (req, res) => {
-  const lat = Number(req.query.lat);
-  const lng = Number(req.query.lng);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-    return res.status(400).json({ error: 'invalid_coords', message: 'Coordonnées invalides.' });
-  }
-  const radius = Math.min(1500, Math.max(50, Number(req.query.radius) || 150));
-  try {
-    const places = await nearbyPlaces(lat, lng, radius);
-    res.json({ places });
-  } catch (err) {
-    res.status(502).json({ error: 'places_failed', message: err.message });
-  }
-});
-
-router.get('/poi-check', requireAdmin, async (req, res) => {
-  const lat = Number(req.query.lat);
-  const lng = Number(req.query.lng);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-    return res.status(400).json({ error: 'invalid_coords', message: 'Coordonnées invalides.' });
-  }
-  const radius = Math.min(1500, Math.max(50, Number(req.query.radius) || 150));
-  const geoapifyCheck = await checkGeoapify(lat, lng, radius);
-  const mirrors = geoapifyCheck.ok ? [] : await checkMirrors(lat, lng, radius);
-  let count = null;
-  let error = null;
-  try {
-    count = (await nearbyPlaces(lat, lng, radius)).length;
-  } catch (err) {
-    error = err.message;
-  }
-  res.json({ lat, lng, radius, ...providerInfo(), geoapifyCheck, count, error, mirrors });
 });
 
 export default router;

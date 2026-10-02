@@ -874,16 +874,6 @@ select:focus {
   color: var(--fg);
 }
 
-.stay-label-error {
-  display: block;
-  margin-top: 4px;
-  color: #dc2626;
-  font-size: 11px;
-  line-height: 1.35;
-  word-break: break-word;
-}
-
-.stay-label-select,
 .stay-label-custom input {
   width: 100%;
   padding: 5px 8px;
@@ -951,22 +941,6 @@ select:focus {
 .leaflet-popup-content .popup-stay {
   color: #7c3aed;
   font-weight: 600;
-}
-
-.leaflet-tooltip.place-label {
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid #fbbf24;
-  border-radius: 6px;
-  color: #1f2937;
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.2;
-  padding: 2px 6px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-}
-
-.leaflet-tooltip.place-label::before {
-  border-right-color: #fbbf24;
 }
 
 .notice {

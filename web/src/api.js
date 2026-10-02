@@ -76,10 +76,6 @@ export const api = {
   reverse: (lat, lng) =>
     request(`/api/geoloc/reverse?lat=${lat}&lng=${lng}`, { timeoutMs: 20000 }),
   search: (q) => request(`/api/geoloc/search?q=${encodeURIComponent(q)}`, { timeoutMs: 20000 }),
-  places: (lat, lng, radius) =>
-    request(`/api/geoloc/places?lat=${lat}&lng=${lng}&radius=${radius || 150}`, {
-      timeoutMs: 20000,
-    }),
   filters: () => request('/api/geoloc/filters'),
   saveFilters: (payload) =>
     request('/api/geoloc/filters', { method: 'POST', body: JSON.stringify(payload) }),

@@ -8,7 +8,6 @@ import {
   TileLayer,
   Tooltip,
   useMap,
-  useMapEvents,
 } from 'react-leaflet';
 import L, { divIcon } from 'leaflet';
 import 'leaflet.heat';
@@ -35,9 +34,6 @@ const ARROW_STEP_KM = 0.3;
 const RUN_GAP_MINUTES = 15;
 const RUN_GAP_KM = 5;
 const STAY_COLOR = '#7c3aed';
-const PLACES_MIN_ZOOM = 17;
-const PLACES_RADIUS_M = 800;
-const MAX_PLACE_MARKERS = 80;
 const MAX_SEGMENT_LABELS = 120;
 const LABEL_MATCH_RADIUS_M = 150;
 const LABEL_SUGGEST_RADIUS_M = 400;
@@ -100,18 +96,6 @@ function readStoredBasemap() {
   } catch {
     /* localStorage indisponible */
   }
-  return null;
-}
-
-function ZoomWatcher({ onChange }) {
-  const map = useMapEvents({
-    zoomend: () => onChange(map.getZoom()),
-  });
-
-  useEffect(() => {
-    onChange(map.getZoom());
-  }, [map, onChange]);
-
   return null;
 }
 
@@ -218,10 +202,6 @@ function MapSearch() {
       )}
     </div>
   );
-}
-
-function coordKey(latitude, longitude) {
-  return `${Number(latitude).toFixed(5)},${Number(longitude).toFixed(5)}`;
 }
 
 function findPlaceLabel(labels, latitude, longitude, radiusM = LABEL_MATCH_RADIUS_M) {
@@ -625,8 +605,6 @@ function segmentIcon(text, color) {
 function StayLabelEditor({
   assigned,
   suggested,
-  placeList,
-  placeError,
   onSave,
   onClear,
   recurringCount = 0,
@@ -644,24 +622,11 @@ function StayLabelEditor({
     }
   };
 
-  const handleSelect = (event) => {
-    const id = event.target.value;
-    if (!id) return;
-    const place = (placeList || []).find((item) => String(item.id) === id);
-    if (!place) return;
-    run(() => onSave(place.name, place.id, applyRecurring));
-  };
-
   const handleCustom = () => {
     const name = custom.trim();
     if (!name) return;
     run(() => onSave(name, null, applyRecurring)).then(() => setCustom(''));
   };
-
-  let placeholder = 'Choisir un POI proche…';
-  if (placeError && !(placeList || []).length) placeholder = 'POI indisponibles';
-  else if (placeList == null) placeholder = 'Chargement des POI…';
-  else if (!placeList.length) placeholder = 'Aucun POI à proximité';
 
   return (
     <div className="stay-label-editor">
@@ -694,22 +659,6 @@ function StayLabelEditor({
           <span className="muted">Aucun lieu enregistré</span>
         )}
       </div>
-      <select
-        className="stay-label-select"
-        value=""
-        onChange={handleSelect}
-        disabled={busy || !placeList || !placeList.length}
-      >
-        <option value="">{placeholder}</option>
-        {(placeList || []).map((place) => (
-          <option key={place.id} value={String(place.id)}>
-            {place.name}
-          </option>
-        ))}
-      </select>
-      {placeError && !(placeList || []).length ? (
-        <span className="stay-label-error">{placeError}</span>
-      ) : null}
       <div className="stay-label-custom">
         <input
           type="text"
@@ -775,11 +724,6 @@ export default function MapView({
   });
   const [addresses, setAddresses] = useState({});
   const requested = useRef(new Set());
-  const [zoom, setZoom] = useState(6);
-  const [places, setPlaces] = useState({});
-  const [placesError, setPlacesError] = useState({});
-  const placesErrors = useRef(new Map());
-  const placesRequested = useRef(new Set());
   const [basemap, setBasemap] = useState(readStoredBasemap);
   const [basemapOpen, setBasemapOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -922,28 +866,6 @@ export default function MapView({
     return labels;
   }, [displayTracks, colors]);
 
-  const ensurePlaces = useCallback((latitude, longitude) => {
-    const key = coordKey(latitude, longitude);
-    if (placesRequested.current.has(key) && !placesErrors.current.has(key)) return;
-    placesRequested.current.add(key);
-    placesErrors.current.delete(key);
-    api
-      .places(latitude, longitude, PLACES_RADIUS_M)
-      .then(({ places: list }) => {
-        setPlaces((prev) => ({ ...prev, [key]: list || [] }));
-        setPlacesError((prev) => ({ ...prev, [key]: null }));
-      })
-      .catch((err) => {
-        placesErrors.current.set(key, true);
-        const message =
-          err?.name === 'AbortError'
-            ? 'Délai dépassé : le serveur n’a pas répondu (Overpass lent ou injoignable).'
-            : err?.message || 'POI indisponibles';
-        setPlaces((prev) => ({ ...prev, [key]: [] }));
-        setPlacesError((prev) => ({ ...prev, [key]: message }));
-      });
-  }, []);
-
   const saveStayLabel = useCallback(
     async (stay, name, placeId, applyRecurring = false) => {
       try {
@@ -1011,21 +933,6 @@ export default function MapView({
     },
     [displayTracks],
   );
-
-  const placeMarkers = [];
-  if (zoom >= PLACES_MIN_ZOOM) {
-    const seen = new Set();
-    for (const stay of stays) {
-      if (placeMarkers.length >= MAX_PLACE_MARKERS) break;
-      const list = places[coordKey(stay.latitude, stay.longitude)] || [];
-      for (const place of list) {
-        if (placeMarkers.length >= MAX_PLACE_MARKERS) break;
-        if (seen.has(place.id)) continue;
-        seen.add(place.id);
-        placeMarkers.push(place);
-      }
-    }
-  }
 
   const loadAddress = useCallback((key, latitude, longitude) => {
     if (requested.current.has(key)) return;
@@ -1210,7 +1117,6 @@ export default function MapView({
         const suggested = assigned
           ? null
           : findPlaceLabel(labels, stay.latitude, stay.longitude, LABEL_SUGGEST_RADIUS_M);
-        const placeList = places[coordKey(stay.latitude, stay.longitude)];
         const recurringCount = stays.filter(
           (other) =>
             other.key !== stay.key &&
@@ -1225,7 +1131,6 @@ export default function MapView({
             eventHandlers={{
               click: () => {
                 loadAddress(stay.key, stay.latitude, stay.longitude);
-                ensurePlaces(stay.latitude, stay.longitude);
               },
             }}
           >
@@ -1249,8 +1154,6 @@ export default function MapView({
               <StayLabelEditor
                 assigned={assigned}
                 suggested={suggested}
-                placeList={placeList}
-                placeError={placesError[coordKey(stay.latitude, stay.longitude)]}
                 recurringCount={recurringCount}
                 onSave={(name, placeId, applyRecurring) =>
                   saveStayLabel(stay, name, placeId, applyRecurring)
@@ -1270,21 +1173,6 @@ export default function MapView({
           interactive={false}
         />
       ))}
-
-      {placeMarkers.map((place) => (
-        <CircleMarker
-          key={place.id}
-          center={[place.latitude, place.longitude]}
-          radius={4}
-          pathOptions={{ color: '#b45309', weight: 2, fillColor: '#fbbf24', fillOpacity: 1 }}
-        >
-          <Tooltip permanent direction="right" offset={[6, 0]} className="place-label">
-            {place.name}
-          </Tooltip>
-        </CircleMarker>
-      ))}
-
-      <ZoomWatcher onChange={setZoom} />
 
       {visibleEntities.map((entity) => (
         <CircleMarker
