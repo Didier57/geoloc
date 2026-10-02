@@ -622,7 +622,15 @@ function segmentIcon(text, color) {
   });
 }
 
-function StayLabelEditor({ assigned, suggested, placeList, onSave, onClear, recurringCount = 0 }) {
+function StayLabelEditor({
+  assigned,
+  suggested,
+  placeList,
+  placeError,
+  onSave,
+  onClear,
+  recurringCount = 0,
+}) {
   const [custom, setCustom] = useState('');
   const [busy, setBusy] = useState(false);
   const [applyRecurring, setApplyRecurring] = useState(recurringCount > 0);
@@ -651,7 +659,8 @@ function StayLabelEditor({ assigned, suggested, placeList, onSave, onClear, recu
   };
 
   let placeholder = 'Choisir un POI proche…';
-  if (placeList == null) placeholder = 'Chargement des POI…';
+  if (placeError && !(placeList || []).length) placeholder = 'POI indisponibles';
+  else if (placeList == null) placeholder = 'Chargement des POI…';
   else if (!placeList.length) placeholder = 'Aucun POI à proximité';
 
   return (
@@ -698,6 +707,9 @@ function StayLabelEditor({ assigned, suggested, placeList, onSave, onClear, recu
           </option>
         ))}
       </select>
+      {placeError && !(placeList || []).length ? (
+        <span className="stay-label-error">{placeError}</span>
+      ) : null}
       <div className="stay-label-custom">
         <input
           type="text"
@@ -765,6 +777,8 @@ export default function MapView({
   const requested = useRef(new Set());
   const [zoom, setZoom] = useState(6);
   const [places, setPlaces] = useState({});
+  const [placesError, setPlacesError] = useState({});
+  const placesErrors = useRef(new Map());
   const placesRequested = useRef(new Set());
   const [basemap, setBasemap] = useState(readStoredBasemap);
   const [basemapOpen, setBasemapOpen] = useState(false);
@@ -910,15 +924,19 @@ export default function MapView({
 
   const ensurePlaces = useCallback((latitude, longitude) => {
     const key = coordKey(latitude, longitude);
-    if (placesRequested.current.has(key)) return;
+    if (placesRequested.current.has(key) && !placesErrors.current.has(key)) return;
     placesRequested.current.add(key);
+    placesErrors.current.delete(key);
     api
       .places(latitude, longitude, PLACES_RADIUS_M)
       .then(({ places: list }) => {
         setPlaces((prev) => ({ ...prev, [key]: list || [] }));
+        setPlacesError((prev) => ({ ...prev, [key]: null }));
       })
-      .catch(() => {
+      .catch((err) => {
+        placesErrors.current.set(key, true);
         setPlaces((prev) => ({ ...prev, [key]: [] }));
+        setPlacesError((prev) => ({ ...prev, [key]: err?.message || 'POI indisponibles' }));
       });
   }, []);
 
@@ -1233,6 +1251,7 @@ export default function MapView({
                 assigned={assigned}
                 suggested={suggested}
                 placeList={placeList}
+                placeError={placesError[coordKey(stay.latitude, stay.longitude)]}
                 recurringCount={recurringCount}
                 onSave={(name, placeId, applyRecurring) =>
                   saveStayLabel(stay, name, placeId, applyRecurring)

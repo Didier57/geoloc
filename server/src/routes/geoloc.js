@@ -15,7 +15,7 @@ import {
 import { decryptSecret } from '../utils/crypto.js';
 import { fetchStates, mapTrackableEntities } from '../homeassistant.js';
 import { reverseGeocode, searchPlaces } from '../geocode.js';
-import { nearbyPlaces } from '../places.js';
+import { nearbyPlaces, checkMirrors } from '../places.js';
 import { deletePoint, listArchives, readDay } from '../history.js';
 import { dayEnd, dayStart, listDays, todayString, toDayString } from '../dates.js';
 import { config } from '../config.js';
@@ -242,6 +242,17 @@ router.get('/places', async (req, res) => {
   } catch (err) {
     res.status(502).json({ error: 'places_failed', message: err.message });
   }
+});
+
+router.get('/poi-check', requireAdmin, async (req, res) => {
+  const lat = Number(req.query.lat);
+  const lng = Number(req.query.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return res.status(400).json({ error: 'invalid_coords', message: 'Coordonnées invalides.' });
+  }
+  const radius = Math.min(500, Math.max(50, Number(req.query.radius) || 150));
+  const mirrors = await checkMirrors(lat, lng, radius);
+  res.json({ lat, lng, radius, mirrors });
 });
 
 export default router;

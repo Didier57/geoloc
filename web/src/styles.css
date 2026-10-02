@@ -874,6 +874,15 @@ select:focus {
   color: var(--fg);
 }
 
+.stay-label-error {
+  display: block;
+  margin-top: 4px;
+  color: #dc2626;
+  font-size: 11px;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
 .stay-label-select,
 .stay-label-custom input {
   width: 100%;

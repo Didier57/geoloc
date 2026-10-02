@@ -282,8 +282,13 @@ function queryMirrors(query) {
     const controller = new AbortController();
     let pending = OVERPASS_MIRRORS.length;
     let emptyResult = null;
-    let lastError = null;
+    const errors = [];
     let settled = false;
+
+    const failureMessage = () =>
+      errors.length
+        ? `Overpass injoignable (${errors.map((e) => `${e.mirror} : ${e.message}`).join(' ; ')})`
+        : 'Overpass indisponible';
 
     const finish = (callback, value) => {
       if (settled) return;
@@ -295,7 +300,7 @@ function queryMirrors(query) {
 
     const timer = setTimeout(() => {
       if (emptyResult) finish(resolve, emptyResult);
-      else finish(reject, lastError || new Error('Overpass indisponible'));
+      else finish(reject, new Error(failureMessage()));
     }, REQUEST_TIMEOUT_MS);
 
     for (const mirror of OVERPASS_MIRRORS) {
@@ -311,16 +316,43 @@ function queryMirrors(query) {
           if (pending === 0) finish(resolve, emptyResult || []);
         })
         .catch((err) => {
-          lastError = err;
+          errors.push({
+            mirror,
+            message: err?.name === 'AbortError' ? 'délai dépassé' : err?.message || String(err),
+          });
           if (settled) return;
           pending -= 1;
           if (pending === 0) {
             if (emptyResult) finish(resolve, emptyResult);
-            else finish(reject, lastError || new Error('Overpass indisponible'));
+            else finish(reject, new Error(failureMessage()));
           }
         });
     }
   });
+}
+
+export async function checkMirrors(lat, lng, radius = 150) {
+  const query = buildQuery(lat, lng, radius);
+  const results = [];
+  for (const mirror of OVERPASS_MIRRORS) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    const started = Date.now();
+    try {
+      const list = await queryMirror(mirror, query, controller.signal);
+      results.push({ mirror, ok: true, count: list.length, ms: Date.now() - started });
+    } catch (err) {
+      results.push({
+        mirror,
+        ok: false,
+        error: err?.name === 'AbortError' ? 'délai dépassé' : err?.message || String(err),
+        ms: Date.now() - started,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  return results;
 }
 
 export async function nearbyPlaces(lat, lng, radius) {
