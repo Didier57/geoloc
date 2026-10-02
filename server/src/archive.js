@@ -6,6 +6,7 @@ import { dayStart, dayEnd, shiftDay, todayString, toDayString } from './dates.js
 import { hasDay, latestPointMs, listArchives, overwriteDay, readDay, saveDay } from './history.js';
 import { filterAnomalies } from './motion.js';
 import { finishJob, getJob, startJob, stepJob, updateJob } from './jobs.js';
+import { logActivity } from './activity.js';
 
 let timer = null;
 let running = null;
@@ -148,11 +149,18 @@ async function doArchive({ force = false, all = false } = {}) {
   });
   if (failures === 0) writeSetting('sync_last_ok_at', finishedAt);
 
+  if (failures === 0) {
+    logActivity('sync', `${archived} jour(s) synchronisé(s)`);
+  } else {
+    logActivity('error', `Synchronisation : ${failures} échec(s) — ${lastError || 'erreur inconnue'}`);
+  }
+
   let cleaned = null;
   if (all) {
     startJob('clean', 'Nettoyage des archives');
     cleaned = cleanArchives();
     finishJob({ archived: cleaned.removed, message: `${cleaned.removed} point(s) retiré(s)` });
+    logActivity('clean', `${cleaned.removed} point(s) retiré(s) sur ${cleaned.days} jour(s)`);
     return { archived, failures, cleaned };
   }
 

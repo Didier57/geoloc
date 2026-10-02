@@ -10,6 +10,7 @@ import Users from './Users.jsx';
 import Backup from './Backup.jsx';
 import GoogleImport from './GoogleImport.jsx';
 import FilterSettings from './FilterSettings.jsx';
+import ActivityLog from './ActivityLog.jsx';
 
 const PALETTE = [
   '#e6194b',
@@ -60,6 +61,7 @@ export default function Dashboard({ user, onLogout }) {
   const [showBackup, setShowBackup] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showFilterSettings, setShowFilterSettings] = useState(false);
+  const [showActivity, setShowActivity] = useState(false);
   const [removed, setRemoved] = useState(0);
   const [adminOpen, setAdminOpen] = useState(false);
   const [syncingAll, setSyncingAll] = useState(false);
@@ -383,6 +385,15 @@ export default function Dashboard({ user, onLogout }) {
                     className="menu-item"
                     onClick={() => {
                       setAdminOpen(false);
+                      setShowActivity(true);
+                    }}
+                  >
+                    Journal d'activité
+                  </button>
+                  <button
+                    className="menu-item"
+                    onClick={() => {
+                      setAdminOpen(false);
                       handleSyncAll();
                     }}
                     disabled={syncingAll}
@@ -576,6 +587,7 @@ export default function Dashboard({ user, onLogout }) {
           onSaved={loadTracks}
         />
       )}
+      {showActivity && <ActivityLog onClose={() => setShowActivity(false)} />}
     </div>
   );
 }

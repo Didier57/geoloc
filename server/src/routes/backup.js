@@ -3,6 +3,7 @@ import { requireAdmin, requireAuth } from '../auth.js';
 import { getHaConfig, setHaConfig } from '../store.js';
 import { decryptSecret, encryptSecret } from '../utils/crypto.js';
 import { listArchives, readDay, saveDay } from '../history.js';
+import { logActivity } from '../activity.js';
 
 const router = Router();
 router.use(requireAuth, requireAdmin);
@@ -114,6 +115,7 @@ router.post('/', (req, res) => {
     }
   }
 
+  logActivity('backup', `Sauvegarde importée : ${added} point(s) ajouté(s), ${duplicates} doublon(s)`);
   res.json({ ok: true, entities, days, added, duplicates, invalidDays, configRestored });
 });
 

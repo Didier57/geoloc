@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireAdmin, requireAuth } from '../auth.js';
 import { importTakeout } from '../takeout.js';
+import { logActivity } from '../activity.js';
 
 const router = Router();
 router.use(requireAuth, requireAdmin);
@@ -26,6 +27,10 @@ router.post('/', (req, res) => {
 
   try {
     const stats = importTakeout({ entityId, buffer, from, to });
+    logActivity(
+      'import',
+      `Import Google (${entityId}) : ${stats.added || 0} point(s) ajouté(s), ${stats.duplicates || 0} doublon(s)`,
+    );
     res.json({ ok: true, ...stats, from, to });
   } catch (err) {
     res.status(400).json({ error: 'import_failed', message: err.message });

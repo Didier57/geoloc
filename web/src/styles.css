@@ -1168,3 +1168,48 @@ select:focus {
     gap: 12px;
   }
 }
+
+.activity-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  max-height: 60vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.activity-item {
+  display: grid;
+  grid-template-columns: 150px 130px 1fr;
+  gap: 10px;
+  align-items: baseline;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2, var(--surface));
+  font-size: 13px;
+}
+
+.activity-when {
+  color: var(--muted-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.activity-type {
+  font-weight: 600;
+  color: var(--label);
+}
+
+.activity-item.activity-error .activity-type {
+  color: var(--danger, #dc2626);
+}
+
+@media (max-width: 720px) {
+  .activity-item {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}

@@ -65,6 +65,13 @@ db.exec(`
   );
 
   CREATE INDEX IF NOT EXISTS idx_points_day ON points (entity_id, day);
+
+  CREATE TABLE IF NOT EXISTS activity (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    at TEXT NOT NULL,
+    type TEXT NOT NULL,
+    message TEXT
+  );
 `);
 
 export function closeDb() {

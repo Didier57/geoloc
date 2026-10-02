@@ -22,6 +22,7 @@ import { config } from '../config.js';
 import { runArchive, archiveInBackground, isArchiving } from '../archive.js';
 import { getJob } from '../jobs.js';
 import { collectTracks } from '../tracks.js';
+import { logActivity, listActivity } from '../activity.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -128,6 +129,10 @@ router.get('/status', (req, res) => {
   });
 });
 
+router.get('/activity', requireAdmin, (req, res) => {
+  res.json({ activity: listActivity(req.query.limit) });
+});
+
 router.delete('/point', requireAdmin, (req, res) => {
   const entityId = String(req.query.entityId || '').trim();
   const timestamp = String(req.query.timestamp || '').trim();
@@ -143,6 +148,7 @@ router.delete('/point', requireAdmin, (req, res) => {
   const day = toDayString(new Date(time));
   const removed = deletePoint(entityId, day, timestamp);
   markPointDeleted(entityId, timestamp);
+  logActivity('point', `Point supprimé (${entityId} à ${timestamp})`);
   res.json({ ok: true, entityId, timestamp, day, removed });
 });
 
@@ -185,6 +191,7 @@ router.post('/labels', (req, res) => {
       .status(400)
       .json({ error: 'invalid_label', message: 'Coordonnées ou nom invalides.' });
   }
+  logActivity('place', `Lieu nommé : ${String(name || '').trim()}`);
   res.json({ labels });
 });
 

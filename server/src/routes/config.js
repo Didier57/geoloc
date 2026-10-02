@@ -3,6 +3,7 @@ import { requireAdmin, requireAuth } from '../auth.js';
 import { getHaConfig, setHaConfig, setHaEntities } from '../store.js';
 import { decryptSecret, encryptSecret } from '../utils/crypto.js';
 import { fetchStates, mapTrackableEntities, testConnection } from '../homeassistant.js';
+import { logActivity } from '../activity.js';
 
 const router = Router();
 
@@ -69,6 +70,7 @@ router.post('/', async (req, res) => {
       lastMessage: message,
       entities: Array.isArray(current?.entities) ? current.entities : [],
     });
+    logActivity('config', `Home Assistant configuré (${effectiveUrl.replace(/\/+$/, '')})`);
     res.json({ ok: true, message, config: serialize() });
   } catch (err) {
     res.status(400).json({ ok: false, error: 'connection_failed', message: err.message });
