@@ -15,7 +15,7 @@ import {
 import { decryptSecret } from '../utils/crypto.js';
 import { fetchStates, mapTrackableEntities } from '../homeassistant.js';
 import { reverseGeocode, searchPlaces } from '../geocode.js';
-import { nearbyPlaces, checkMirrors } from '../places.js';
+import { nearbyPlaces, checkMirrors, providerInfo } from '../places.js';
 import { deletePoint, listArchives, readDay } from '../history.js';
 import { dayEnd, dayStart, listDays, todayString, toDayString } from '../dates.js';
 import { config } from '../config.js';
@@ -252,7 +252,14 @@ router.get('/poi-check', requireAdmin, async (req, res) => {
   }
   const radius = Math.min(500, Math.max(50, Number(req.query.radius) || 150));
   const mirrors = await checkMirrors(lat, lng, radius);
-  res.json({ lat, lng, radius, mirrors });
+  let count = null;
+  let error = null;
+  try {
+    count = (await nearbyPlaces(lat, lng, radius)).length;
+  } catch (err) {
+    error = err.message;
+  }
+  res.json({ lat, lng, radius, ...providerInfo(), count, error, mirrors });
 });
 
 export default router;

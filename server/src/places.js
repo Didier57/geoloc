@@ -15,6 +15,138 @@ const REQUEST_TIMEOUT_MS = 10000;
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_RESULTS = 60;
 
+const GEOAPIFY_KEY = process.env.GEOAPIFY_KEY || '';
+const GEOAPIFY_URL = 'https://api.geoapify.com/v2/places';
+const GEOAPIFY_CATEGORIES = [
+  'catering',
+  'commercial',
+  'healthcare',
+  'education',
+  'accommodation',
+  'tourism',
+  'entertainment',
+  'leisure',
+  'service',
+  'office',
+  'religion',
+  'heritage',
+  'sport',
+  'parking',
+  'public_transport',
+  'activity',
+  'pet',
+  'production',
+  'industrial',
+].join(',');
+
+const GEOAPIFY_LABELS = {
+  restaurant: 'Restaurant',
+  cafe: 'Café',
+  bar: 'Bar',
+  pub: 'Pub',
+  fast_food: 'Restauration rapide',
+  food_court: 'Restauration rapide',
+  bakery: 'Boulangerie',
+  butcher: 'Boucherie',
+  greengrocer: 'Primeur',
+  ice_cream: 'Glacier',
+  confectionery: 'Confiserie',
+  supermarket: 'Supermarché',
+  convenience: 'Épicerie',
+  marketplace: 'Marché',
+  mall: 'Centre commercial',
+  department_store: 'Grand magasin',
+  clothes: 'Vêtements',
+  shoes: 'Chaussures',
+  jewelry: 'Bijouterie',
+  florist: 'Fleuriste',
+  books: 'Librairie',
+  electronics: 'Électronique',
+  hardware: 'Bricolage',
+  furniture: 'Ameublement',
+  optician: 'Opticien',
+  hairdresser: 'Coiffeur',
+  beauty: 'Beauté',
+  bank: 'Banque',
+  atm: 'Distributeur',
+  pharmacy: 'Pharmacie',
+  hospital: 'Hôpital',
+  clinic: 'Clinique',
+  dentist: 'Dentiste',
+  doctors: 'Médecin',
+  veterinary: 'Vétérinaire',
+  fuel: 'Station-service',
+  charging_station: 'Borne de recharge',
+  post_office: 'Bureau de poste',
+  police: 'Police',
+  fire_station: 'Pompiers',
+  townhall: 'Mairie',
+  school: 'École',
+  kindergarten: 'Crèche',
+  college: 'Collège',
+  university: 'Université',
+  library: 'Bibliothèque',
+  cinema: 'Cinéma',
+  theatre: 'Théâtre',
+  nightclub: 'Discothèque',
+  casino: 'Casino',
+  arts_centre: 'Centre culturel',
+  community_centre: 'Centre social',
+  place_of_worship: 'Lieu de culte',
+  hotel: 'Hôtel',
+  motel: 'Motel',
+  hostel: 'Auberge',
+  guest_house: "Maison d'hôtes",
+  apartment: 'Appartement',
+  museum: 'Musée',
+  gallery: 'Galerie',
+  attraction: 'Attraction',
+  viewpoint: 'Point de vue',
+  park: 'Parc',
+  garden: 'Jardin',
+  playground: 'Aire de jeux',
+  sports_centre: 'Centre sportif',
+  fitness_centre: 'Salle de sport',
+  stadium: 'Stade',
+  swimming_pool: 'Piscine',
+  golf_course: 'Golf',
+  marina: 'Marina',
+  car_repair: 'Garage',
+  car: 'Automobile',
+  bicycle: 'Vélos',
+  company: 'Entreprise',
+  office: 'Bureau',
+  industrial: 'Site industriel',
+  warehouse: 'Entrepôt',
+  building: 'Bâtiment',
+  commercial: 'Commerce',
+  healthcare: 'Santé',
+  education: 'Enseignement',
+  accommodation: 'Hébergement',
+  catering: 'Restauration',
+  entertainment: 'Divertissement',
+  leisure: 'Loisirs',
+  heritage: 'Patrimoine',
+  religion: 'Culte',
+  service: 'Service',
+  production: 'Production',
+  activity: 'Activité',
+  pet: 'Animalerie',
+  parking: 'Parking',
+  public_transport: 'Transport',
+};
+
+function geoapifyKind(categories) {
+  const list = Array.isArray(categories) ? categories : [];
+  for (let i = list.length - 1; i >= 0; i -= 1) {
+    const parts = String(list[i]).split('.');
+    const leaf = parts[parts.length - 1];
+    if (KIND_LABELS[leaf] || GEOAPIFY_LABELS[leaf]) return leaf;
+  }
+  const first = list[0] ? String(list[0]).split('.')[0] : null;
+  return first || null;
+}
+
 const AMENITY_VALUES = [
   'restaurant',
   'cafe',
@@ -247,7 +379,13 @@ function kindOf(tags) {
 
 function labelOf(kind) {
   if (!kind || kind === 'yes' || kind === 'no') return 'Lieu';
-  return KIND_LABELS[kind] || kind.replace(/_/g, ' ');
+  return KIND_LABELS[kind] || GEOAPIFY_LABELS[kind] || kind.replace(/_/g, ' ');
+}
+
+function describeError(err) {
+  if (err?.name === 'AbortError') return 'délai dépassé';
+  const code = err?.cause?.code || err?.code;
+  return code ? `${err.message} (${code})` : err?.message || String(err);
 }
 
 async function queryMirror(mirror, query, signal) {
@@ -325,10 +463,7 @@ function queryMirrors(query) {
           if (pending === 0) finish(resolve, emptyResult || []);
         })
         .catch((err) => {
-          errors.push({
-            mirror,
-            message: err?.name === 'AbortError' ? 'délai dépassé' : err?.message || String(err),
-          });
+          errors.push({ mirror, message: describeError(err) });
           if (settled) return;
           pending -= 1;
           if (pending === 0) {
@@ -354,7 +489,7 @@ export async function checkMirrors(lat, lng, radius = 150) {
       results.push({
         mirror,
         ok: false,
-        error: err?.name === 'AbortError' ? 'délai dépassé' : err?.message || String(err),
+        error: describeError(err),
         ms: Date.now() - started,
       });
     } finally {
@@ -364,13 +499,76 @@ export async function checkMirrors(lat, lng, radius = 150) {
   return results;
 }
 
+async function queryGeoapify(lat, lng, radius) {
+  const url = new URL(GEOAPIFY_URL);
+  url.searchParams.set('categories', GEOAPIFY_CATEGORIES);
+  url.searchParams.set('filter', `circle:${lng},${lat},${radius}`);
+  url.searchParams.set('bias', `proximity:${lng},${lat}`);
+  url.searchParams.set('limit', String(MAX_RESULTS));
+  url.searchParams.set('lang', 'fr');
+  url.searchParams.set('apiKey', GEOAPIFY_KEY);
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  let data;
+  try {
+    const res = await fetch(url, { headers: { Accept: 'application/json' }, signal: controller.signal });
+    if (!res.ok) throw new Error(`Geoapify a répondu ${res.status}`);
+    data = await res.json();
+  } finally {
+    clearTimeout(timer);
+  }
+
+  return (data?.features || [])
+    .map((feature) => {
+      const props = feature?.properties || {};
+      const coords = feature?.geometry?.coordinates || [];
+      const longitude = props.lon ?? coords[0];
+      const latitude = props.lat ?? coords[1];
+      const name = props.name || props.address_line1;
+      if (!name || latitude == null || longitude == null) return null;
+      const kind = geoapifyKind(props.categories);
+      return {
+        id: props.place_id || `${longitude},${latitude}`,
+        name,
+        kind,
+        label: labelOf(kind),
+        latitude,
+        longitude,
+      };
+    })
+    .filter(Boolean);
+}
+
+export function providerInfo() {
+  return {
+    provider: GEOAPIFY_KEY ? 'geoapify' : 'overpass',
+    geoapify: Boolean(GEOAPIFY_KEY),
+    mirrors: OVERPASS_MIRRORS,
+  };
+}
+
 export async function nearbyPlaces(lat, lng, radius) {
   const key = `${Number(lat).toFixed(5)},${Number(lng).toFixed(5)},${radius}`;
   const cached = cache.get(key);
   if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.places;
 
-  const query = buildQuery(lat, lng, radius);
-  const places = await withLimit(() => queryMirrors(query));
+  let places;
+  if (GEOAPIFY_KEY) {
+    try {
+      places = await withLimit(() => queryGeoapify(lat, lng, radius));
+    } catch (err) {
+      try {
+        places = await withLimit(() => queryMirrors(buildQuery(lat, lng, radius)));
+      } catch (fallbackErr) {
+        throw new Error(
+          `POI indisponibles (Geoapify : ${describeError(err)} ; Overpass : ${describeError(fallbackErr)})`,
+        );
+      }
+    }
+  } else {
+    places = await withLimit(() => queryMirrors(buildQuery(lat, lng, radius)));
+  }
 
   cache.set(key, { at: Date.now(), places });
   return places;
