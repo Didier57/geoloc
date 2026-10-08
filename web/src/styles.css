@@ -699,6 +699,35 @@ select:focus {
   background: var(--surface-2);
 }
 
+.map-search-pin {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  font-size: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 8px;
+}
+
+.map-search-pin-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--label);
+}
+
+.search-pin span {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #f97316;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 2px #f97316, 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
 .basemap-toggle {
   display: inline-flex;
   align-items: center;

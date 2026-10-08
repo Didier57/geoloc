@@ -139,6 +139,7 @@ function MapSearch() {
   const [results, setResults] = useState([]);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
+  const [pin, setPin] = useState(null);
   const requestRef = useRef(0);
 
   useEffect(() => {
@@ -174,6 +175,7 @@ function MapSearch() {
   const pick = (result) => {
     setResults([]);
     setNote('');
+    setPin({ latitude: result.latitude, longitude: result.longitude, name: result.name });
     map.flyTo([result.latitude, result.longitude], 16);
   };
 
@@ -202,6 +204,21 @@ function MapSearch() {
             </li>
           ))}
         </ul>
+      )}
+      {pin && (
+        <>
+          <div className="map-search-pin">
+            <span className="map-search-pin-name" title={pin.name}>{pin.name}</span>
+            <button type="button" className="link" onClick={() => setPin(null)}>
+              Retirer
+            </button>
+          </div>
+          <Marker position={[pin.latitude, pin.longitude]} icon={searchPinIcon()}>
+            <Tooltip permanent direction="top" offset={[0, -10]}>
+              {pin.name}
+            </Tooltip>
+          </Marker>
+        </>
       )}
     </div>
   );
@@ -615,6 +632,15 @@ function segmentIcon(text, color) {
     html: `<div class="route-segment-inner" style="border-color:${color}">${text}</div>`,
     iconSize: [0, 0],
     iconAnchor: [0, 0],
+  });
+}
+
+function searchPinIcon() {
+  return divIcon({
+    className: 'search-pin',
+    html: '<span></span>',
+    iconSize: [16, 16],
+    iconAnchor: [8, 8],
   });
 }
 
