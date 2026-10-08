@@ -8,6 +8,7 @@ import {
   TileLayer,
   Tooltip,
   useMap,
+  useMapEvents,
 } from 'react-leaflet';
 import L, { divIcon } from 'leaflet';
 import 'leaflet.heat';
@@ -636,6 +637,81 @@ function StayLabelEditor({
   );
 }
 
+function MapContextMenu({ onPick }) {
+  useMapEvents({
+    contextmenu(event) {
+      if (event.originalEvent) L.DomEvent.preventDefault(event.originalEvent);
+      onPick({ latitude: event.latlng.lat, longitude: event.latlng.lng });
+    },
+  });
+  return null;
+}
+
+function MapLabelEditor({ assigned, onSave, onClear, onClose }) {
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const run = async (action) => {
+    setBusy(true);
+    try {
+      await action();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSave = () => {
+    const value = name.trim();
+    if (!value) return;
+    run(() => onSave(value));
+  };
+
+  return (
+    <div className="place-actions">
+      <div className="line-actions-head">Nommer ce lieu</div>
+      {assigned ? (
+        <div className="place-actions-current">
+          <span className="stay-label-name">{assigned.name}</span>
+          <button
+            type="button"
+            className="link danger"
+            onClick={() => run(onClear)}
+            disabled={busy}
+          >
+            Retirer
+          </button>
+        </div>
+      ) : null}
+      <div className="stay-label-custom">
+        <input
+          type="text"
+          value={name}
+          placeholder="Nom personnalisé (société)"
+          autoFocus
+          onChange={(event) => setName(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') handleSave();
+          }}
+          disabled={busy}
+        />
+        <button
+          type="button"
+          className="btn ghost"
+          onClick={handleSave}
+          disabled={busy || !name.trim()}
+        >
+          Enregistrer
+        </button>
+      </div>
+      <div className="line-actions-buttons">
+        <button type="button" className="btn ghost" onClick={onClose} disabled={busy}>
+          Annuler
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function stayIcon() {
   return divIcon({
     className: 'route-stay',
@@ -687,6 +763,7 @@ export default function MapView({
 
   const [labels, setLabels] = useState([]);
   const [lineTarget, setLineTarget] = useState(null);
+  const [mapPlace, setMapPlace] = useState(null);
 
   useEffect(() => {
     api
@@ -847,6 +924,32 @@ export default function MapView({
       try {
         const { labels: list } = await api.deleteLabel(stay.latitude, stay.longitude);
         setLabels(Array.isArray(list) ? list : []);
+      } catch (err) {
+        onError?.(err.message);
+      }
+    },
+    [onError],
+  );
+
+  const saveMapLabel = useCallback(
+    async (latitude, longitude, name) => {
+      try {
+        const { labels: list } = await api.saveLabel({ latitude, longitude, name });
+        setLabels(Array.isArray(list) ? list : []);
+        setMapPlace(null);
+      } catch (err) {
+        onError?.(err.message);
+      }
+    },
+    [onError],
+  );
+
+  const clearMapLabel = useCallback(
+    async (latitude, longitude) => {
+      try {
+        const { labels: list } = await api.deleteLabel(latitude, longitude);
+        setLabels(Array.isArray(list) ? list : []);
+        setMapPlace(null);
       } catch (err) {
         onError?.(err.message);
       }
@@ -1137,6 +1240,16 @@ export default function MapView({
 
       <FocusPlace focus={focus} />
 
+      <MapContextMenu onPick={setMapPlace} />
+
+      {mapPlace ? (
+        <CircleMarker
+          center={[mapPlace.latitude, mapPlace.longitude]}
+          radius={8}
+          pathOptions={{ color: '#7c3aed', weight: 2, fillColor: '#7c3aed', fillOpacity: 0.3 }}
+        />
+      ) : null}
+
       <div className="basemap-control">
         <button
           type="button"
@@ -1287,6 +1400,15 @@ export default function MapView({
             </button>
           </div>
         </div>
+      ) : null}
+
+      {mapPlace ? (
+        <MapLabelEditor
+          assigned={findPlaceLabel(labels, mapPlace.latitude, mapPlace.longitude)}
+          onSave={(name) => saveMapLabel(mapPlace.latitude, mapPlace.longitude, name)}
+          onClear={() => clearMapLabel(mapPlace.latitude, mapPlace.longitude)}
+          onClose={() => setMapPlace(null)}
+        />
       ) : null}
     </MapContainer>
   );
