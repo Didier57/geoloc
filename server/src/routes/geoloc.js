@@ -204,8 +204,9 @@ router.delete('/labels', (req, res) => {
   res.json({ labels: removePlaceLabel(latitude, longitude) });
 });
 
-const VISIT_RADIUS_M = 200;
+const VISIT_RADIUS_M = 50;
 const STAY_OUTLIER_TOLERANCE = 3;
+const VISIT_MERGE_GAP_MS = 30 * 60000;
 
 router.get('/label-visits', async (req, res) => {
   const lat = Number(req.query.lat);
@@ -285,8 +286,35 @@ router.get('/label-visits', async (req, res) => {
       }
     }
   }
-  visits.sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime());
-  res.json({ visits, radius: radiusM, entities });
+  const grouped = new Map();
+  for (const visit of visits) {
+    const key = `${visit.entityId}|${visit.day}`;
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push(visit);
+  }
+  const merged = [];
+  for (const list of grouped.values()) {
+    list.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+    let current = null;
+    for (const visit of list) {
+      const gap = current ? new Date(visit.start).getTime() - new Date(current.end).getTime() : Infinity;
+      if (current && gap <= VISIT_MERGE_GAP_MS) {
+        current.end = visit.end;
+        current.durationMs =
+          new Date(current.end).getTime() - new Date(current.start).getTime();
+        if (visit.distanceM < current.distanceM) {
+          current.distanceM = visit.distanceM;
+          current.latitude = visit.latitude;
+          current.longitude = visit.longitude;
+        }
+      } else {
+        current = { ...visit };
+        merged.push(current);
+      }
+    }
+  }
+  merged.sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime());
+  res.json({ visits: merged, radius: radiusM, entities });
 });
 
 router.get('/reverse', async (req, res) => {
