@@ -14,7 +14,7 @@ import {
 } from '../store.js';
 import { decryptSecret } from '../utils/crypto.js';
 import { fetchStates, mapTrackableEntities } from '../homeassistant.js';
-import { reverseGeocode } from '../geocode.js';
+import { reverseGeocode, searchPlaces } from '../geocode.js';
 import { deletePoint, listArchives, pointsInBox, readDay } from '../history.js';
 import { detectStays, haversineKm, STAY_MIN_MINUTES, STAY_RADIUS_KM } from '../motion.js';
 import { dayEnd, dayStart, listDays, todayString, toDayString } from '../dates.js';
@@ -315,6 +315,17 @@ router.get('/label-visits', async (req, res) => {
   }
   merged.sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime());
   res.json({ visits: merged, radius: radiusM, entities });
+});
+
+router.get('/search', async (req, res) => {
+  const q = String(req.query.q || '').trim();
+  if (q.length < 3) return res.json({ results: [] });
+  try {
+    const results = await searchPlaces(q);
+    res.json({ results });
+  } catch (err) {
+    res.status(502).json({ error: 'search_failed', message: err.message });
+  }
 });
 
 router.get('/reverse', async (req, res) => {

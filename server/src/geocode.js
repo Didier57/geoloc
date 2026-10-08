@@ -41,3 +41,41 @@ export async function reverseGeocode(lat, lng) {
   cache.set(key, address);
   return address;
 }
+
+export async function searchPlaces(query) {
+  const q = String(query || '').trim();
+  if (q.length < 3) return [];
+  const key = `search:${q.toLowerCase()}`;
+  if (cache.has(key)) return cache.get(key);
+
+  const params = new URLSearchParams({
+    format: 'jsonv2',
+    q,
+    limit: '8',
+    'accept-language': 'fr',
+  });
+
+  const results = await schedule(async () => {
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
+      headers: {
+        'User-Agent': 'geoloc-app/1.0 (https://github.com/Didier57/geoloc)',
+        Accept: 'application/json',
+      },
+    });
+    if (!res.ok) throw new Error(`Nominatim a répondu ${res.status}`);
+    const data = await res.json();
+    return (Array.isArray(data) ? data : [])
+      .map((item) => ({
+        name: item.display_name,
+        latitude: Number(item.lat),
+        longitude: Number(item.lon),
+      }))
+      .filter(
+        (item) =>
+          item.name && Number.isFinite(item.latitude) && Number.isFinite(item.longitude),
+      );
+  });
+
+  cache.set(key, results);
+  return results;
+}

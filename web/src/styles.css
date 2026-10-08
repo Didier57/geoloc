@@ -623,15 +623,75 @@ select:focus {
   gap: 6px;
 }
 
-.export-control {
+.map-search {
   position: absolute;
   top: 10px;
   left: 10px;
-  z-index: 1000;
+  z-index: 1100;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 6px;
+  max-width: min(320px, calc(100% - 20px));
+}
+
+.map-search form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 10px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  box-shadow: 0 2px 8px var(--shadow-map);
+}
+
+.map-search input {
+  border: none;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font-size: 13px;
+  min-width: 170px;
+}
+
+.map-search-note {
+  font-size: 12px;
+  color: var(--muted-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 8px;
+}
+
+.map-search-results {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  width: 100%;
+  max-height: 260px;
+  overflow: auto;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 2px 8px var(--shadow-map);
+}
+
+.map-search-results button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 13px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.map-search-results button:hover {
+  background: var(--surface-2);
 }
 
 .basemap-toggle {

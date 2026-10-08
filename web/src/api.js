@@ -75,6 +75,8 @@ export const api = {
   activity: (limit) => request(`/api/geoloc/activity${limit ? `?limit=${limit}` : ''}`),
   reverse: (lat, lng) =>
     request(`/api/geoloc/reverse?lat=${lat}&lng=${lng}`, { timeoutMs: 20000 }),
+  search: (q) =>
+    request(`/api/geoloc/search?q=${encodeURIComponent(q)}`, { timeoutMs: 20000 }),
   filters: () => request('/api/geoloc/filters'),
   saveFilters: (payload) =>
     request('/api/geoloc/filters', { method: 'POST', body: JSON.stringify(payload) }),
