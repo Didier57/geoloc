@@ -89,7 +89,9 @@ export default function PlaceSearch({ entities, selectedIds, onClose, onPick }) 
   const filtered = useMemo(() => {
     const q = normalize(query.trim());
     const list = q ? labels.filter((label) => normalize(label.name).includes(q)) : labels;
-    return list.slice(0, 50);
+    return [...list]
+      .sort((a, b) => normalize(a.name).localeCompare(normalize(b.name), 'fr'))
+      .slice(0, 50);
   }, [labels, query]);
 
   const choose = async (label) => {
