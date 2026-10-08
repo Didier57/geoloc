@@ -238,7 +238,6 @@ export default function Dashboard({ user, onLogout }) {
   function openVisit(day, latitude, longitude) {
     setFocus({ latitude, longitude, nonce: Date.now() });
     setDate(day);
-    setShowPlaceSearch(false);
   }
 
   const hasPoints = tracks.some((track) => track.points.length > 0);

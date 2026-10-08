@@ -979,6 +979,39 @@ select:focus {
   gap: 8px;
 }
 
+.modal-backdrop.floating-backdrop {
+  background: transparent;
+  pointer-events: none;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 12px;
+}
+
+.modal.floating {
+  pointer-events: auto;
+  resize: both;
+  overflow: auto;
+  min-width: 340px;
+  min-height: 220px;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 24px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+.modal-drag-handle {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: move;
+  user-select: none;
+  touch-action: none;
+}
+
+.modal-drag-handle .muted {
+  font-size: 11px;
+}
+
 .users-table {
   width: 100%;
   border-collapse: collapse;
@@ -1129,6 +1162,11 @@ select:focus {
 
 .visits-table tbody tr:hover {
   background: var(--chip-active-bg, rgba(127, 127, 127, 0.15));
+}
+
+.visits-table tbody tr.selected {
+  background: var(--chip-active-bg, rgba(127, 127, 127, 0.25));
+  font-weight: 600;
 }
 
 @media (max-width: 720px) {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
 
 function normalize(value) {
@@ -43,6 +43,33 @@ export default function PlaceSearch({ entities, selectedIds, onClose, onPick }) 
   const [visits, setVisits] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [picked, setPicked] = useState(null);
+  const dragState = useRef(null);
+
+  function startDrag(event) {
+    if (event.button && event.button !== 0) return;
+    dragState.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      baseX: offset.x,
+      baseY: offset.y,
+    };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  }
+
+  function moveDrag(event) {
+    if (!dragState.current) return;
+    setOffset({
+      x: dragState.current.baseX + (event.clientX - dragState.current.startX),
+      y: dragState.current.baseY + (event.clientY - dragState.current.startY),
+    });
+  }
+
+  function endDrag(event) {
+    dragState.current = null;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+  }
 
   useEffect(() => {
     api
@@ -81,9 +108,21 @@ export default function PlaceSearch({ entities, selectedIds, onClose, onPick }) 
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal wide" onClick={(event) => event.stopPropagation()}>
-        <h2>Mes lieux</h2>
+    <div className="modal-backdrop floating-backdrop">
+      <div
+        className="modal wide floating"
+        style={{ transform: `translate(${offset.x}px, ${offset.y}px)` }}
+      >
+        <div
+          className="modal-drag-handle"
+          onPointerDown={startDrag}
+          onPointerMove={moveDrag}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+        >
+          <h2>Mes lieux</h2>
+          <span className="muted">Glisser pour déplacer · étirer le coin pour redimensionner</span>
+        </div>
         <input
           type="search"
           autoFocus
@@ -143,7 +182,11 @@ export default function PlaceSearch({ entities, selectedIds, onClose, onPick }) 
                       {visits.map((visit) => (
                         <tr
                           key={`${visit.entityId}-${visit.start}`}
-                          onClick={() => onPick(visit.day, visit.latitude, visit.longitude)}
+                          className={picked === visit.start ? 'selected' : ''}
+                          onClick={() => {
+                            setPicked(visit.start);
+                            onPick(visit.day, visit.latitude, visit.longitude);
+                          }}
                           title="Voir ce jour sur la carte"
                         >
                           <td>{formatDate(visit.day)}</td>
