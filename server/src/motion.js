@@ -6,7 +6,15 @@ import {
 } from 'geoloc-shared/motion.js';
 import { config } from './config.js';
 
-export { bearingDegrees, haversineKm, impliedSpeedKmh } from 'geoloc-shared/motion.js';
+export {
+  bearingDegrees,
+  haversineKm,
+  impliedSpeedKmh,
+  detectStays,
+  collapseStays,
+  STAY_RADIUS_KM,
+  STAY_MIN_MINUTES,
+} from 'geoloc-shared/motion.js';
 
 const SPEED_THRESHOLDS = {
   stillMaxKmh: config.stillMaxKmh,

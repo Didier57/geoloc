@@ -12,6 +12,7 @@ export default function Filters({
   onToggleStats,
   showHeat,
   onToggleHeat,
+  onOpenPlaces,
 }) {
   const selected = new Set(selectedIds);
   return (
@@ -70,6 +71,9 @@ export default function Filters({
           </button>
           <button className="btn ghost" onClick={onToggleHeat}>
             {showHeat ? 'Masquer les zones' : 'Zones'}
+          </button>
+          <button className="btn ghost" onClick={onOpenPlaces}>
+            Mes lieux
           </button>
         </div>
       </div>

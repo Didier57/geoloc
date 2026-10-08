@@ -14,8 +14,9 @@ import {
 } from '../store.js';
 import { decryptSecret } from '../utils/crypto.js';
 import { fetchStates, mapTrackableEntities } from '../homeassistant.js';
-import { reverseGeocode, searchPlaces } from '../geocode.js';
-import { deletePoint, listArchives, readDay } from '../history.js';
+import { reverseGeocode } from '../geocode.js';
+import { deletePoint, listArchives, pointsInBox, readDay } from '../history.js';
+import { detectStays, haversineKm, STAY_MIN_MINUTES, STAY_RADIUS_KM } from '../motion.js';
 import { dayEnd, dayStart, listDays, todayString, toDayString } from '../dates.js';
 import { config } from '../config.js';
 import { runArchive, archiveInBackground, isArchiving } from '../archive.js';
@@ -203,15 +204,89 @@ router.delete('/labels', (req, res) => {
   res.json({ labels: removePlaceLabel(latitude, longitude) });
 });
 
-router.get('/search', async (req, res) => {
-  const q = String(req.query.q || '').trim();
-  if (q.length < 3) return res.json({ results: [] });
-  try {
-    const results = await searchPlaces(q);
-    res.json({ results });
-  } catch (err) {
-    res.status(502).json({ error: 'search_failed', message: err.message });
+const VISIT_RADIUS_M = 200;
+const STAY_OUTLIER_TOLERANCE = 3;
+
+router.get('/label-visits', async (req, res) => {
+  const lat = Number(req.query.lat);
+  const lng = Number(req.query.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return res.status(400).json({ error: 'invalid_coords', message: 'Coordonnées invalides.' });
   }
+  const radiusM = Math.min(1000, Math.max(50, Number(req.query.radius) || VISIT_RADIUS_M));
+  const radiusKm = radiusM / 1000;
+
+  let entities = String(req.query.entities || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (entities.length === 0) entities = listArchives().map((item) => item.entityId);
+
+  const deltaLat = radiusKm / 111.32;
+  const cosLat = Math.max(0.01, Math.cos((lat * Math.PI) / 180));
+  const deltaLng = radiusKm / (111.32 * cosLat);
+
+  const byEntity = new Map(entities.map((entityId) => [entityId, new Map()]));
+  for (const entityId of entities) {
+    byEntity.set(
+      entityId,
+      pointsInBox(entityId, lat - deltaLat, lat + deltaLat, lng - deltaLng, lng + deltaLng),
+    );
+  }
+
+  const haConfig = currentConfig();
+  if (haConfig) {
+    try {
+      const today = todayString();
+      const { tracks } = await collectTracks(haConfig, entities, [today]);
+      for (const track of tracks) {
+        const points = track.points.filter(
+          (point) => Number.isFinite(point.latitude) && Number.isFinite(point.longitude),
+        );
+        if (points.length === 0) continue;
+        const days = byEntity.get(track.entityId) || new Map();
+        const existing = days.get(today) || [];
+        const seen = new Set(existing.map((point) => point.timestamp));
+        const merged = [...existing];
+        for (const point of points) {
+          if (seen.has(point.timestamp)) continue;
+          merged.push(point);
+          seen.add(point.timestamp);
+        }
+        days.set(today, merged);
+        byEntity.set(track.entityId, days);
+      }
+    } catch {
+      /* Home Assistant indisponible : on se contente des archives */
+    }
+  }
+
+  const visits = [];
+  for (const [entityId, days] of byEntity) {
+    for (const [day, points] of days) {
+      if (!points || points.length === 0) continue;
+      const sorted = [...points].sort(
+        (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+      );
+      const stays = detectStays(sorted, STAY_RADIUS_KM, STAY_MIN_MINUTES, STAY_OUTLIER_TOLERANCE);
+      for (const stay of stays) {
+        const distanceKm = haversineKm(lat, lng, stay.latitude, stay.longitude);
+        if (distanceKm > radiusKm) continue;
+        visits.push({
+          entityId,
+          day,
+          start: stay.start,
+          end: stay.end,
+          durationMs: stay.durationMs,
+          distanceM: Math.round(distanceKm * 1000),
+          latitude: stay.latitude,
+          longitude: stay.longitude,
+        });
+      }
+    }
+  }
+  visits.sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime());
+  res.json({ visits, radius: radiusM, entities });
 });
 
 router.get('/reverse', async (req, res) => {

@@ -62,6 +62,27 @@ export function readDay(entityId, day) {
     .filter(Boolean);
 }
 
+export function pointsInBox(entityId, minLat, maxLat, minLng, maxLng) {
+  const rows = db
+    .prepare(
+      'SELECT day, data FROM points WHERE entity_id = ? AND latitude BETWEEN ? AND ? AND longitude BETWEEN ? AND ? ORDER BY day, timestamp',
+    )
+    .all(String(entityId), minLat, maxLat, minLng, maxLng);
+  const byDay = new Map();
+  for (const row of rows) {
+    let point = null;
+    try {
+      point = JSON.parse(row.data);
+    } catch {
+      point = null;
+    }
+    if (!point) continue;
+    if (!byDay.has(row.day)) byDay.set(row.day, []);
+    byDay.get(row.day).push(point);
+  }
+  return byDay;
+}
+
 export function saveDay(entityId, day, points) {
   const insert = db.prepare(
     'INSERT OR REPLACE INTO points (entity_id, day, timestamp, latitude, longitude, data) VALUES (?, ?, ?, ?, ?, ?)',

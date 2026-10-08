@@ -87,6 +87,13 @@ un **repère violet** (épingle) est affiché sur la carte. Cliquez dessus pour 
 (adresse géocodée) et la **plage horaire** de l'arrêt (de … à …) avec sa durée. Vous pouvez saisir
 un **nom personnalisé** (société, domicile…) pour mémoriser ce lieu et l'afficher sur la carte.
 
+### Rechercher un lieu enregistré
+
+Le bouton **Mes lieux** (bloc « Jour ») ouvre une fenêtre où vous pouvez **rechercher parmi vos noms
+personnalisés** : la liste se filtre à chaque lettre tapée. En sélectionnant un lieu, un tableau
+affiche **toutes les dates** où vous vous êtes arrêté à proximité (≤ 200 m), avec l'heure d'arrivée et
+la durée. Un clic sur une ligne **ouvre la carte sur ce jour** et zoome sur le lieu.
+
 ## Sauvegarde et restauration
 
 Depuis la fenêtre **Sauvegarde** (bouton visible par les administrateurs), vous pouvez :

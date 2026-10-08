@@ -11,6 +11,7 @@ import Backup from './Backup.jsx';
 import GoogleImport from './GoogleImport.jsx';
 import FilterSettings from './FilterSettings.jsx';
 import ActivityLog from './ActivityLog.jsx';
+import PlaceSearch from './PlaceSearch.jsx';
 
 const PALETTE = [
   '#e6194b',
@@ -62,6 +63,8 @@ export default function Dashboard({ user, onLogout }) {
   const [showImport, setShowImport] = useState(false);
   const [showFilterSettings, setShowFilterSettings] = useState(false);
   const [showActivity, setShowActivity] = useState(false);
+  const [showPlaceSearch, setShowPlaceSearch] = useState(false);
+  const [focus, setFocus] = useState(null);
   const [removed, setRemoved] = useState(0);
   const [adminOpen, setAdminOpen] = useState(false);
   const [syncingAll, setSyncingAll] = useState(false);
@@ -220,10 +223,22 @@ export default function Dashboard({ user, onLogout }) {
     api.setSelection([]).catch(() => {});
   }
 
+  function changeDate(value) {
+    setFocus(null);
+    setDate(value);
+  }
+
   function shiftDay(delta) {
+    setFocus(null);
     const next = startOfDay(date);
     next.setDate(next.getDate() + delta);
     setDate(toDateInput(next));
+  }
+
+  function openVisit(day, latitude, longitude) {
+    setFocus({ latitude, longitude, nonce: Date.now() });
+    setDate(day);
+    setShowPlaceSearch(false);
   }
 
   const hasPoints = tracks.some((track) => track.points.length > 0);
@@ -433,12 +448,13 @@ export default function Dashboard({ user, onLogout }) {
             onClear={clearEntities}
             colors={colors}
             date={date}
-            onDate={setDate}
+            onDate={changeDate}
             onShiftDay={shiftDay}
             showStats={showStats}
             onToggleStats={() => setShowStats((value) => !value)}
             showHeat={showHeat}
             onToggleHeat={() => setShowHeat((value) => !value)}
+            onOpenPlaces={() => setShowPlaceSearch(true)}
           />
           {error && <div className="error banner">{error}</div>}
           {!error && health?.configured && health.sync && health.sync.ok === false && (
@@ -489,6 +505,7 @@ export default function Dashboard({ user, onLogout }) {
               showLive={date === toDateInput(new Date())}
               isAdmin={isAdmin}
               heat={showHeat}
+              focus={focus}
               onPointDeleted={loadTracks}
               onError={setError}
             />
@@ -588,6 +605,14 @@ export default function Dashboard({ user, onLogout }) {
         />
       )}
       {showActivity && <ActivityLog onClose={() => setShowActivity(false)} />}
+      {showPlaceSearch && (
+        <PlaceSearch
+          entities={entities}
+          selectedIds={selectedIds}
+          onClose={() => setShowPlaceSearch(false)}
+          onPick={openVisit}
+        />
+      )}
     </div>
   );
 }

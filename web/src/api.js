@@ -75,13 +75,18 @@ export const api = {
   activity: (limit) => request(`/api/geoloc/activity${limit ? `?limit=${limit}` : ''}`),
   reverse: (lat, lng) =>
     request(`/api/geoloc/reverse?lat=${lat}&lng=${lng}`, { timeoutMs: 20000 }),
-  search: (q) => request(`/api/geoloc/search?q=${encodeURIComponent(q)}`, { timeoutMs: 20000 }),
   filters: () => request('/api/geoloc/filters'),
   saveFilters: (payload) =>
     request('/api/geoloc/filters', { method: 'POST', body: JSON.stringify(payload) }),
   labels: () => request('/api/geoloc/labels'),
   saveLabel: (payload) => request('/api/geoloc/labels', { method: 'POST', body: JSON.stringify(payload) }),
   deleteLabel: (lat, lng) => request(`/api/geoloc/labels?lat=${lat}&lng=${lng}`, { method: 'DELETE' }),
+  labelVisits: (lat, lng, entityIds, radius) => {
+    const params = new URLSearchParams({ lat, lng });
+    if (entityIds && entityIds.length) params.set('entities', entityIds.join(','));
+    if (radius) params.set('radius', String(radius));
+    return request(`/api/geoloc/label-visits?${params.toString()}`, { timeoutMs: 30000 });
+  },
   tracks: (entityIds, from, to) => {
     const params = new URLSearchParams({ entities: entityIds.join(','), from });
     if (to) params.set('to', to);

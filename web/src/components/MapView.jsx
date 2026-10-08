@@ -133,75 +133,16 @@ function HeatLayer({ points }) {
   return null;
 }
 
-function MapSearch() {
+function FocusPlace({ focus }) {
   const map = useMap();
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState([]);
-  const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const [searched, setSearched] = useState(false);
 
-  const run = async (event) => {
-    event.preventDefault();
-    const q = query.trim();
-    if (q.length < 3) return;
-    setBusy(true);
-    setError('');
-    try {
-      const data = await api.search(q);
-      setResults(data.results || []);
-      setSearched(true);
-      setOpen(true);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
-    }
-  };
+  useEffect(() => {
+    if (!focus) return;
+    if (!Number.isFinite(focus.latitude) || !Number.isFinite(focus.longitude)) return;
+    map.flyTo([focus.latitude, focus.longitude], focus.zoom || 16);
+  }, [focus, map]);
 
-  const choose = (result) => {
-    map.flyTo([result.latitude, result.longitude], 16);
-    setOpen(false);
-  };
-
-  return (
-    <div className="map-search">
-      <form onSubmit={run}>
-        <input
-          type="search"
-          value={query}
-          placeholder="Rechercher une adresse ou un lieu…"
-          aria-label="Rechercher une adresse ou un lieu"
-          onChange={(event) => {
-            setQuery(event.target.value);
-            setSearched(false);
-          }}
-          onFocus={() => {
-            if (results.length) setOpen(true);
-          }}
-        />
-        <button type="submit" className="btn" disabled={busy || query.trim().length < 3}>
-          {busy ? '…' : 'Aller'}
-        </button>
-      </form>
-      {error && <div className="map-search-note error">{error}</div>}
-      {open && results.length > 0 && (
-        <ul className="map-search-results">
-          {results.map((result, index) => (
-            <li key={`${result.latitude}-${result.longitude}-${index}`}>
-              <button type="button" onClick={() => choose(result)}>
-                {result.name}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-      {open && !busy && searched && results.length === 0 && (
-        <div className="map-search-note">Aucun résultat.</div>
-      )}
-    </div>
-  );
+  return null;
 }
 
 function findPlaceLabel(labels, latitude, longitude, radiusM = LABEL_MATCH_RADIUS_M) {
@@ -217,7 +158,7 @@ function findPlaceLabel(labels, latitude, longitude, radiusM = LABEL_MATCH_RADIU
   return match;
 }
 
-function FitBounds({ tracks, entities }) {
+function FitBounds({ tracks, entities, disabled = false }) {
   const map = useMap();
   const signature = useMemo(() => {
     const parts = [];
@@ -235,6 +176,7 @@ function FitBounds({ tracks, entities }) {
   }, [tracks, entities]);
 
   useEffect(() => {
+    if (disabled) return;
     const points = [];
     tracks.forEach((track) => {
       track.points.forEach((point) => points.push([point.latitude, point.longitude]));
@@ -248,7 +190,7 @@ function FitBounds({ tracks, entities }) {
     } else if (points.length > 1) {
       map.fitBounds(points, { padding: [30, 30] });
     }
-  }, [signature, map]);
+  }, [signature, map, disabled]);
 
   return null;
 }
@@ -711,6 +653,7 @@ export default function MapView({
   showLive = true,
   isAdmin = false,
   heat = false,
+  focus = null,
   onPointDeleted,
   onError,
 }) {
@@ -1190,9 +1133,9 @@ export default function MapView({
         </CircleMarker>
       ))}
 
-      <FitBounds tracks={displayTracks} entities={visibleEntities} />
+      <FitBounds tracks={displayTracks} entities={visibleEntities} disabled={Boolean(focus)} />
 
-      <MapSearch />
+      <FocusPlace focus={focus} />
 
       <div className="basemap-control">
         <button
