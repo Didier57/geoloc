@@ -320,8 +320,10 @@ router.get('/label-visits', async (req, res) => {
 router.get('/search', async (req, res) => {
   const q = String(req.query.q || '').trim();
   if (q.length < 3) return res.json({ results: [] });
+  const lat = Number(req.query.lat);
+  const lng = Number(req.query.lng);
   try {
-    const results = await searchPlaces(q);
+    const results = await searchPlaces(q, { lat, lng });
     res.json({ results });
   } catch (err) {
     res.status(502).json({ error: 'search_failed', message: err.message });

@@ -635,7 +635,7 @@ select:focus {
   max-width: min(320px, calc(100% - 20px));
 }
 
-.map-search form {
+.map-search-field {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -653,6 +653,11 @@ select:focus {
   color: inherit;
   font-size: 13px;
   min-width: 170px;
+}
+
+.map-search-busy {
+  color: var(--muted-2);
+  font-size: 13px;
 }
 
 .map-search-note {

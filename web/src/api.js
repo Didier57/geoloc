@@ -75,8 +75,14 @@ export const api = {
   activity: (limit) => request(`/api/geoloc/activity${limit ? `?limit=${limit}` : ''}`),
   reverse: (lat, lng) =>
     request(`/api/geoloc/reverse?lat=${lat}&lng=${lng}`, { timeoutMs: 20000 }),
-  search: (q) =>
-    request(`/api/geoloc/search?q=${encodeURIComponent(q)}`, { timeoutMs: 20000 }),
+  search: (q, bias) => {
+    const params = new URLSearchParams({ q });
+    if (bias && Number.isFinite(bias.lat) && Number.isFinite(bias.lng)) {
+      params.set('lat', String(bias.lat));
+      params.set('lng', String(bias.lng));
+    }
+    return request(`/api/geoloc/search?${params.toString()}`, { timeoutMs: 20000 });
+  },
   filters: () => request('/api/geoloc/filters'),
   saveFilters: (payload) =>
     request('/api/geoloc/filters', { method: 'POST', body: JSON.stringify(payload) }),

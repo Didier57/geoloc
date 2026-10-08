@@ -42,39 +42,107 @@ export async function reverseGeocode(lat, lng) {
   return address;
 }
 
-export async function searchPlaces(query) {
-  const q = String(query || '').trim();
-  if (q.length < 3) return [];
-  const key = `search:${q.toLowerCase()}`;
-  if (cache.has(key)) return cache.get(key);
+const PHOTON_URL = 'https://photon.komoot.io/api/';
+const NOMINATIM_SEARCH_URL = 'https://nominatim.openstreetmap.org/search';
 
+const GEOCODE_HEADERS = {
+  'User-Agent': 'geoloc-app/1.0 (https://github.com/Didier57/geoloc)',
+  Accept: 'application/json',
+};
+
+function photonLabel(properties) {
+  if (!properties) return '';
+  const parts = properties.name
+    ? [properties.name, properties.city, properties.country]
+    : [
+        [properties.housenumber, properties.street].filter(Boolean).join(' ') ||
+          properties.city,
+        properties.postcode,
+        properties.country,
+      ];
+  return parts
+    .filter(Boolean)
+    .filter((value, index, list) => list.indexOf(value) === index)
+    .join(', ');
+}
+
+async function photonSearch(query, lat, lng) {
+  const params = new URLSearchParams({ q: query, limit: '10', lang: 'fr' });
+  if (Number.isFinite(lat) && Number.isFinite(lng)) {
+    params.set('lat', String(lat));
+    params.set('lon', String(lng));
+  }
+  const res = await fetch(`${PHOTON_URL}?${params.toString()}`, { headers: GEOCODE_HEADERS });
+  if (!res.ok) throw new Error(`Photon a répondu ${res.status}`);
+  const data = await res.json();
+  const features = Array.isArray(data?.features) ? data.features : [];
+  return features
+    .map((feature) => {
+      const coordinates = feature.geometry?.coordinates || [];
+      return {
+        name: photonLabel(feature.properties),
+        latitude: Number(coordinates[1]),
+        longitude: Number(coordinates[0]),
+      };
+    })
+    .filter(
+      (item) => item.name && Number.isFinite(item.latitude) && Number.isFinite(item.longitude),
+    );
+}
+
+async function nominatimSearch(query, lat, lng) {
   const params = new URLSearchParams({
     format: 'jsonv2',
-    q,
-    limit: '8',
+    q: query,
+    limit: '10',
+    addressdetails: '1',
+    dedupe: '1',
     'accept-language': 'fr',
   });
-
-  const results = await schedule(async () => {
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
-      headers: {
-        'User-Agent': 'geoloc-app/1.0 (https://github.com/Didier57/geoloc)',
-        Accept: 'application/json',
-      },
-    });
-    if (!res.ok) throw new Error(`Nominatim a répondu ${res.status}`);
-    const data = await res.json();
-    return (Array.isArray(data) ? data : [])
-      .map((item) => ({
-        name: item.display_name,
-        latitude: Number(item.lat),
-        longitude: Number(item.lon),
-      }))
-      .filter(
-        (item) =>
-          item.name && Number.isFinite(item.latitude) && Number.isFinite(item.longitude),
-      );
+  if (Number.isFinite(lat) && Number.isFinite(lng)) {
+    const d = 0.25;
+    params.set('viewbox', `${lng - d},${lat + d},${lng + d},${lat - d}`);
+    params.set('bounded', '0');
+  }
+  const res = await fetch(`${NOMINATIM_SEARCH_URL}?${params.toString()}`, {
+    headers: GEOCODE_HEADERS,
   });
+  if (!res.ok) throw new Error(`Nominatim a répondu ${res.status}`);
+  const data = await res.json();
+  return (Array.isArray(data) ? data : [])
+    .map((item) => ({
+      name: item.display_name,
+      latitude: Number(item.lat),
+      longitude: Number(item.lon),
+    }))
+    .filter(
+      (item) => item.name && Number.isFinite(item.latitude) && Number.isFinite(item.longitude),
+    );
+}
+
+export async function searchPlaces(query, { lat, lng } = {}) {
+  const q = String(query || '').trim();
+  if (q.length < 3) return [];
+
+  const biasLat = Number(lat);
+  const biasLng = Number(lng);
+  const hasBias = Number.isFinite(biasLat) && Number.isFinite(biasLng);
+  const key = `search:${hasBias ? `${biasLat.toFixed(2)},${biasLng.toFixed(2)}:` : ''}${q.toLowerCase()}`;
+  if (cache.has(key)) return cache.get(key);
+
+  let results = [];
+  try {
+    results = await schedule(() => photonSearch(q, biasLat, biasLng));
+  } catch {
+    results = [];
+  }
+  if (results.length === 0) {
+    try {
+      results = await schedule(() => nominatimSearch(q, biasLat, biasLng));
+    } catch {
+      results = [];
+    }
+  }
 
   cache.set(key, results);
   return results;

@@ -136,54 +136,63 @@ function HeatLayer({ points }) {
 function MapSearch() {
   const map = useMap();
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState(null);
+  const [results, setResults] = useState([]);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
+  const requestRef = useRef(0);
 
-  const submit = async (event) => {
-    event.preventDefault();
+  useEffect(() => {
     const q = query.trim();
     if (q.length < 3) {
-      setNote('Saisissez au moins 3 caractères.');
-      return;
+      setResults([]);
+      setBusy(false);
+      setNote(q.length > 0 ? 'Saisissez au moins 3 caractères.' : '');
+      return undefined;
     }
+
     setBusy(true);
     setNote('');
-    setResults(null);
-    try {
-      const { results: list } = await api.search(q);
-      const rows = Array.isArray(list) ? list : [];
-      setResults(rows);
-      if (rows.length === 0) setNote('Aucun résultat.');
-    } catch (err) {
-      setNote(err.message || 'Recherche indisponible.');
-    } finally {
-      setBusy(false);
-    }
-  };
+    const token = (requestRef.current += 1);
+    const timer = setTimeout(async () => {
+      try {
+        const center = map.getCenter();
+        const { results: list } = await api.search(q, { lat: center.lat, lng: center.lng });
+        if (requestRef.current !== token) return;
+        const rows = Array.isArray(list) ? list : [];
+        setResults(rows);
+        setNote(rows.length === 0 ? 'Aucun résultat.' : '');
+      } catch (err) {
+        if (requestRef.current === token) setNote(err.message || 'Recherche indisponible.');
+      } finally {
+        if (requestRef.current === token) setBusy(false);
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [query, map]);
 
   const pick = (result) => {
-    setResults(null);
+    setResults([]);
     setNote('');
     map.flyTo([result.latitude, result.longitude], 16);
   };
 
   return (
     <div className="map-search">
-      <form onSubmit={submit}>
+      <div className="map-search-field">
         <input
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Rechercher une adresse ou un lieu"
           aria-label="Rechercher une adresse ou un lieu"
+          autoComplete="off"
+          spellCheck="false"
         />
-        <button type="submit" className="btn" disabled={busy || query.trim().length < 3}>
-          {busy ? '…' : 'Aller'}
-        </button>
-      </form>
+        {busy && <span className="map-search-busy">…</span>}
+      </div>
       {note && <div className="map-search-note">{note}</div>}
-      {results && results.length > 0 && (
+      {results.length > 0 && (
         <ul className="map-search-results">
           {results.map((result) => (
             <li key={`${result.latitude},${result.longitude},${result.name}`}>
