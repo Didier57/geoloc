@@ -186,7 +186,7 @@ function MapSearch() {
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Rechercher une adresse ou un lieu"
+          placeholder="Adresse, commerce, restaurant…"
           aria-label="Rechercher une adresse ou un lieu"
           autoComplete="off"
           spellCheck="false"
@@ -199,7 +199,8 @@ function MapSearch() {
           {results.map((result) => (
             <li key={`${result.latitude},${result.longitude},${result.name}`}>
               <button type="button" onClick={() => pick(result)}>
-                {result.name}
+                <span className="map-search-name">{result.name}</span>
+                {result.kind && <span className="map-search-kind">{result.kind}</span>}
               </button>
             </li>
           ))}

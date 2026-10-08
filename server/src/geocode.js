@@ -50,6 +50,87 @@ const GEOCODE_HEADERS = {
   Accept: 'application/json',
 };
 
+const PLACE_LABELS = {
+  restaurant: 'Restaurant',
+  cafe: 'Café',
+  bar: 'Bar',
+  pub: 'Pub',
+  fast_food: 'Restauration rapide',
+  bakery: 'Boulangerie',
+  convenience: 'Épicerie',
+  supermarket: 'Supermarché',
+  marketplace: 'Marché',
+  greengrocer: 'Primeur',
+  butcher: 'Boucherie',
+  hairdresser: 'Coiffeur',
+  clothes: 'Vêtements',
+  shoes: 'Chaussures',
+  jewelry: 'Bijouterie',
+  florist: 'Fleuriste',
+  books: 'Librairie',
+  electronics: 'Électronique',
+  mobile_phone: 'Téléphonie',
+  computer: 'Informatique',
+  hardware: 'Bricolage',
+  furniture: 'Ameublement',
+  optician: 'Opticien',
+  car: 'Automobile',
+  car_repair: 'Garage',
+  bicycle: 'Vélos',
+  fuel: 'Station-service',
+  bank: 'Banque',
+  pharmacy: 'Pharmacie',
+  post_office: 'Bureau de poste',
+  hospital: 'Hôpital',
+  clinic: 'Clinique',
+  doctors: 'Médecin',
+  dentist: 'Dentiste',
+  veterinary: 'Vétérinaire',
+  school: 'École',
+  university: 'Université',
+  library: 'Bibliothèque',
+  kindergarten: 'Crèche',
+  cinema: 'Cinéma',
+  theatre: 'Théâtre',
+  museum: 'Musée',
+  hotel: 'Hôtel',
+  hostel: 'Auberge',
+  guest_house: "Maison d'hôtes",
+  camp_site: 'Camping',
+  attraction: 'Attraction',
+  viewpoint: 'Point de vue',
+  park: 'Parc',
+  sports_centre: 'Centre sportif',
+  fitness_centre: 'Salle de sport',
+  swimming_pool: 'Piscine',
+  place_of_worship: 'Lieu de culte',
+  company: 'Société',
+  office: 'Bureau',
+  industrial: 'Site industriel',
+  warehouse: 'Entrepôt',
+  retail: 'Commerce',
+  commercial: 'Bâtiment commercial',
+  apartments: 'Immeuble',
+  residential: 'Bâtiment',
+  house: 'Maison',
+  church: 'Église',
+  tourism: 'Tourisme',
+  information: 'Information',
+  toilets: 'Toilettes',
+  drinking_water: "Point d'eau",
+  parking: 'Parking',
+  bus_station: 'Gare routière',
+  railway: 'Gare',
+  aerodrome: 'Aérodrome',
+};
+
+function placeKindLabel(value) {
+  if (!value || value === 'yes' || value === 'no') return '';
+  const key = String(value).toLowerCase();
+  if (PLACE_LABELS[key]) return PLACE_LABELS[key];
+  return key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ');
+}
+
 function photonLabel(properties) {
   if (!properties) return '';
   const parts = properties.name
@@ -67,7 +148,7 @@ function photonLabel(properties) {
 }
 
 async function photonSearch(query, lat, lng) {
-  const params = new URLSearchParams({ q: query, limit: '10', lang: 'fr' });
+  const params = new URLSearchParams({ q: query, limit: '12', lang: 'fr' });
   if (Number.isFinite(lat) && Number.isFinite(lng)) {
     params.set('lat', String(lat));
     params.set('lon', String(lng));
@@ -81,6 +162,7 @@ async function photonSearch(query, lat, lng) {
       const coordinates = feature.geometry?.coordinates || [];
       return {
         name: photonLabel(feature.properties),
+        kind: placeKindLabel(feature.properties?.osm_value),
         latitude: Number(coordinates[1]),
         longitude: Number(coordinates[0]),
       };
@@ -112,6 +194,7 @@ async function nominatimSearch(query, lat, lng) {
   return (Array.isArray(data) ? data : [])
     .map((item) => ({
       name: item.display_name,
+      kind: placeKindLabel(item.type),
       latitude: Number(item.lat),
       longitude: Number(item.lon),
     }))

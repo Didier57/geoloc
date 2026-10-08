@@ -683,7 +683,10 @@ select:focus {
 }
 
 .map-search-results button {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
   width: 100%;
   text-align: left;
   border: none;
@@ -697,6 +700,14 @@ select:focus {
 
 .map-search-results button:hover {
   background: var(--surface-2);
+}
+
+.map-search-kind {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted-2);
 }
 
 .map-search-pin {
