@@ -289,14 +289,31 @@ router.get('/label-visits', async (req, res) => {
       const sorted = [...points].sort(
         (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
       );
+      const filtered = filterAnomalies(sorted, filters);
       const stays = detectStays(
-        filterAnomalies(sorted, filters),
+        filtered,
         STAY_RADIUS_KM,
         STAY_MIN_MINUTES,
         STAY_OUTLIER_TOLERANCE,
       );
       for (const stay of stays) {
-        const distanceKm = haversineKm(lat, lng, stay.latitude, stay.longitude);
+        // On teste la proximite au niveau des POINTS de l'arret (et non du seul
+        // centre) : le centre peut derive de quelques dizaines de metres alors que
+        // la personne etait bien sur place.
+        const startMs = new Date(stay.start).getTime();
+        const endMs = new Date(stay.end).getTime();
+        let nearest = null;
+        for (const point of filtered) {
+          const time = new Date(point.timestamp).getTime();
+          if (time < startMs || time > endMs) continue;
+          const d = haversineKm(lat, lng, point.latitude, point.longitude);
+          if (!nearest || d < nearest.distanceKm) {
+            nearest = { distanceKm: d, latitude: point.latitude, longitude: point.longitude };
+          }
+        }
+        const distanceKm = nearest
+          ? nearest.distanceKm
+          : haversineKm(lat, lng, stay.latitude, stay.longitude);
         if (distanceKm > radiusKm) continue;
         visits.push({
           entityId,
@@ -305,8 +322,8 @@ router.get('/label-visits', async (req, res) => {
           end: stay.end,
           durationMs: stay.durationMs,
           distanceM: Math.round(distanceKm * 1000),
-          latitude: stay.latitude,
-          longitude: stay.longitude,
+          latitude: nearest ? nearest.latitude : stay.latitude,
+          longitude: nearest ? nearest.longitude : stay.longitude,
         });
       }
     }
