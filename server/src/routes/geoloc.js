@@ -16,7 +16,13 @@ import { decryptSecret } from '../utils/crypto.js';
 import { fetchStates, mapTrackableEntities } from '../homeassistant.js';
 import { reverseGeocode, searchPlaces } from '../geocode.js';
 import { deletePoint, listArchives, pointsInBox, readDay } from '../history.js';
-import { detectStays, haversineKm, STAY_MIN_MINUTES, STAY_RADIUS_KM } from '../motion.js';
+import {
+  detectStays,
+  filterAnomalies,
+  haversineKm,
+  STAY_MIN_MINUTES,
+  STAY_RADIUS_KM,
+} from '../motion.js';
 import { dayEnd, dayStart, listDays, todayString, toDayString } from '../dates.js';
 import { config } from '../config.js';
 import { runArchive, archiveInBackground, isArchiving } from '../archive.js';
@@ -223,53 +229,72 @@ router.get('/label-visits', async (req, res) => {
     .filter(Boolean);
   if (entities.length === 0) entities = listArchives().map((item) => item.entityId);
 
-  const deltaLat = radiusKm / 111.32;
+  // On repere d'abord les jours ou une position tombe pres du lieu (boite large
+  // couvrant le rayon d'un arret), puis on analyse la JOURNEE ENTIERE : sans cela,
+  // un lieu visite le matin ET le soir serait fusionne en un seul sejour.
+  const candidateKm = STAY_RADIUS_KM + radiusKm;
+  const deltaLat = candidateKm / 111.32;
   const cosLat = Math.max(0.01, Math.cos((lat * Math.PI) / 180));
-  const deltaLng = radiusKm / (111.32 * cosLat);
+  const deltaLng = candidateKm / (111.32 * cosLat);
 
-  const byEntity = new Map(entities.map((entityId) => [entityId, new Map()]));
+  const candidateDays = new Map(entities.map((entityId) => [entityId, new Set()]));
   for (const entityId of entities) {
-    byEntity.set(
+    const boxed = pointsInBox(
       entityId,
-      pointsInBox(entityId, lat - deltaLat, lat + deltaLat, lng - deltaLng, lng + deltaLng),
+      lat - deltaLat,
+      lat + deltaLat,
+      lng - deltaLng,
+      lng + deltaLng,
     );
+    for (const day of boxed.keys()) candidateDays.get(entityId).add(day);
   }
 
+  const today = todayString();
+  const liveByEntity = new Map();
   const haConfig = currentConfig();
   if (haConfig) {
     try {
-      const today = todayString();
       const { tracks } = await collectTracks(haConfig, entities, [today]);
       for (const track of tracks) {
         const points = track.points.filter(
           (point) => Number.isFinite(point.latitude) && Number.isFinite(point.longitude),
         );
         if (points.length === 0) continue;
-        const days = byEntity.get(track.entityId) || new Map();
-        const existing = days.get(today) || [];
-        const seen = new Set(existing.map((point) => point.timestamp));
-        const merged = [...existing];
-        for (const point of points) {
-          if (seen.has(point.timestamp)) continue;
-          merged.push(point);
-          seen.add(point.timestamp);
-        }
-        days.set(today, merged);
-        byEntity.set(track.entityId, days);
+        liveByEntity.set(track.entityId, points);
+        candidateDays.get(track.entityId)?.add(today);
       }
     } catch {
       /* Home Assistant indisponible : on se contente des archives */
     }
   }
 
+  const filters = getFilters() || {};
   const visits = [];
-  for (const [entityId, days] of byEntity) {
-    for (const [day, points] of days) {
-      if (!points || points.length === 0) continue;
+  for (const entityId of entities) {
+    const days = candidateDays.get(entityId) || new Set();
+    for (const day of days) {
+      const points = readDay(entityId, day);
+      if (day === today) {
+        const live = liveByEntity.get(entityId) || [];
+        if (live.length > 0) {
+          const seen = new Set(points.map((point) => point.timestamp));
+          for (const point of live) {
+            if (seen.has(point.timestamp)) continue;
+            points.push(point);
+            seen.add(point.timestamp);
+          }
+        }
+      }
+      if (points.length === 0) continue;
       const sorted = [...points].sort(
         (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
       );
-      const stays = detectStays(sorted, STAY_RADIUS_KM, STAY_MIN_MINUTES, STAY_OUTLIER_TOLERANCE);
+      const stays = detectStays(
+        filterAnomalies(sorted, filters),
+        STAY_RADIUS_KM,
+        STAY_MIN_MINUTES,
+        STAY_OUTLIER_TOLERANCE,
+      );
       for (const stay of stays) {
         const distanceKm = haversineKm(lat, lng, stay.latitude, stay.longitude);
         if (distanceKm > radiusKm) continue;
