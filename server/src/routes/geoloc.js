@@ -359,6 +359,87 @@ router.get('/label-visits', async (req, res) => {
   res.json({ visits: merged, radius: radiusM, entities });
 });
 
+router.get('/label-diag', requireAdmin, (req, res) => {
+  let lat = Number(req.query.lat);
+  let lng = Number(req.query.lng);
+  const name = String(req.query.name || '').trim().toLowerCase();
+  if ((!Number.isFinite(lat) || !Number.isFinite(lng)) && name) {
+    const label = listPlaceLabels().find((item) => String(item.name).toLowerCase().includes(name));
+    if (label) {
+      lat = label.latitude;
+      lng = label.longitude;
+    }
+  }
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return res.status(400).json({ error: 'invalid_coords', message: 'Coordonnées ou nom requis.' });
+  }
+  const withinM = Math.min(2000, Math.max(50, Number(req.query.within) || 200));
+  let entities = String(req.query.entities || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const archives = listArchives();
+  if (entities.length === 0) entities = archives.map((item) => item.entityId);
+
+  const filters = getFilters() || {};
+  const days = [];
+  for (const entityId of entities) {
+    const entityDays = archives.find((item) => item.entityId === entityId)?.days || [];
+    for (const day of entityDays) {
+      const points = readDay(entityId, day);
+      if (points.length === 0) continue;
+      const sorted = [...points].sort(
+        (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+      );
+      let nearestM = Infinity;
+      for (const point of sorted) {
+        const d = haversineKm(lat, lng, point.latitude, point.longitude) * 1000;
+        if (d < nearestM) nearestM = d;
+      }
+      if (nearestM > withinM) continue;
+      const filtered = filterAnomalies(sorted, filters);
+      const stays = detectStays(filtered, STAY_RADIUS_KM, STAY_MIN_MINUTES, STAY_OUTLIER_TOLERANCE);
+      const stayInfo = [];
+      for (const stay of stays) {
+        const startMs = new Date(stay.start).getTime();
+        const endMs = new Date(stay.end).getTime();
+        let stayNearest = Infinity;
+        for (const point of filtered) {
+          const time = new Date(point.timestamp).getTime();
+          if (time < startMs || time > endMs) continue;
+          const d = haversineKm(lat, lng, point.latitude, point.longitude) * 1000;
+          if (d < stayNearest) stayNearest = d;
+        }
+        stayInfo.push({
+          start: stay.start,
+          end: stay.end,
+          durationMin: Math.round(stay.durationMs / 60000),
+          nearestM: Math.round(stayNearest),
+        });
+      }
+      days.push({
+        entityId,
+        day,
+        points: sorted.length,
+        nearestM: Math.round(nearestM),
+        stays: stayInfo,
+      });
+    }
+  }
+  days.sort((a, b) => (a.day < b.day ? -1 : 1));
+  const withStay = days.filter((item) =>
+    item.stays.some((stay) => stay.nearestM <= VISIT_RADIUS_M),
+  ).length;
+  res.json({
+    lat,
+    lng,
+    withinM,
+    totalNearDays: days.length,
+    daysWithVisit: withStay,
+    days,
+  });
+});
+
 router.get('/search', async (req, res) => {
   const q = String(req.query.q || '').trim();
   if (q.length < 3) return res.json({ results: [] });
