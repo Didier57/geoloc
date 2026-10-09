@@ -45,6 +45,9 @@ export default function PlaceSearch({ entities, selectedIds, onClose, onPick }) 
   const [error, setError] = useState('');
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [picked, setPicked] = useState(null);
+  const [radius, setRadius] = useState(
+    () => Number(localStorage.getItem('geoloc.visitRadius')) || 50,
+  );
   const dragState = useRef(null);
 
   function startDrag(event) {
@@ -94,19 +97,29 @@ export default function PlaceSearch({ entities, selectedIds, onClose, onPick }) 
       .slice(0, 50);
   }, [labels, query]);
 
-  const choose = async (label) => {
-    setActive(label);
+  const loadVisits = async (label, radiusM) => {
     setVisits(null);
     setLoading(true);
     setError('');
     try {
-      const data = await api.labelVisits(label.latitude, label.longitude, selectedIds);
+      const data = await api.labelVisits(label.latitude, label.longitude, selectedIds, radiusM);
       setVisits(Array.isArray(data.visits) ? data.visits : []);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  const choose = (label) => {
+    setActive(label);
+    loadVisits(label, radius);
+  };
+
+  const changeRadius = (value) => {
+    setRadius(value);
+    localStorage.setItem('geoloc.visitRadius', String(value));
+    if (active) loadVisits(active, value);
   };
 
   return (
@@ -133,6 +146,21 @@ export default function PlaceSearch({ entities, selectedIds, onClose, onPick }) 
           placeholder="Rechercher un nom personnalisé…"
           onChange={(event) => setQuery(event.target.value)}
         />
+        <div className="place-search-tools">
+          <label>
+            Rayon&nbsp;
+            <select value={radius} onChange={(event) => changeRadius(Number(event.target.value))}>
+              <option value={50}>50 m</option>
+              <option value={100}>100 m</option>
+              <option value={200}>200 m</option>
+              <option value={300}>300 m</option>
+              <option value={500}>500 m</option>
+            </select>
+          </label>
+          <span className="muted">
+            Une visite compte si un arrêt a un point dans ce rayon autour du lieu nommé.
+          </span>
+        </div>
         <div className="place-search-body">
           <ul className="place-results">
             {filtered.length === 0 && (

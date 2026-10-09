@@ -322,8 +322,8 @@ router.get('/label-visits', async (req, res) => {
           end: stay.end,
           durationMs: stay.durationMs,
           distanceM: Math.round(distanceKm * 1000),
-          latitude: nearest ? nearest.latitude : stay.latitude,
-          longitude: nearest ? nearest.longitude : stay.longitude,
+          latitude: lat,
+          longitude: lng,
         });
       }
     }

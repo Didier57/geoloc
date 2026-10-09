@@ -1187,6 +1187,25 @@ select:focus {
   font-size: 14px;
 }
 
+.place-search-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted-2);
+  flex-wrap: wrap;
+}
+
+.place-search-tools select {
+  padding: 3px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: inherit;
+  font-size: 12px;
+}
+
 .place-search-body {
   display: grid;
   grid-template-columns: 220px 1fr;
